@@ -1,6 +1,6 @@
 # Text tracer bullet — scaffold + EMAIL regex, end-to-end
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 
