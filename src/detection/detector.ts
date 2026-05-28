@@ -1,4 +1,5 @@
 import type { Span } from '../domain/types';
+import type { CustomPattern } from './patterns';
 
 interface DetectResponse {
   id: number;
@@ -8,7 +9,7 @@ interface DetectResponse {
 // The single externally-callable detection surface. Hides the worker boundary
 // behind a promise; later slices add layers inside the worker, not here.
 export interface Detector {
-  detect(text: string): Promise<Span[]>;
+  detect(text: string, customPatterns?: CustomPattern[]): Promise<Span[]>;
   terminate(): void;
 }
 
@@ -30,11 +31,12 @@ export function createDetector(): Detector {
   };
 
   return {
-    detect(text: string) {
+    detect(text: string, customPatterns?: CustomPattern[]) {
       const id = nextId++;
       return new Promise<Span[]>((resolve) => {
         pending.set(id, resolve);
-        worker.postMessage({ id, text });
+        // RegExp is structured-cloneable, so customPatterns cross the boundary.
+        worker.postMessage({ id, text, customPatterns });
       });
     },
     terminate() {

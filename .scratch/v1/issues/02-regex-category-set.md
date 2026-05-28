@@ -1,6 +1,6 @@
 # Complete the regex Category set + span merge
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 
