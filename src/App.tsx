@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createDetector, type Detector } from './detection/detector';
+import { createModelWorker } from './detection/detector';
 import { groupItems } from './domain/items';
 import type { Item, Span } from './domain/types';
 import { assignTokens } from './redaction/tokeniser';
@@ -14,7 +14,6 @@ import { SettingsSheet } from './ui/SettingsSheet';
 import { ModelGate } from './ui/ModelGate';
 import { useTheme } from './ui/useTheme';
 import { useModelGate } from './model/useModelGate';
-import { createMockModelClient } from './model/mockModelClient';
 import { isDemoEnabled } from './demo/flag';
 import { sampleReview } from './demo/sampleDocument';
 
@@ -41,24 +40,16 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'dropzone' });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, toggleTheme] = useTheme();
-  const modelClient = useMemo(() => createMockModelClient(), []);
-  const model = useModelGate(modelClient);
-  const detectorRef = useRef<Detector | null>(null);
+  const modelWorker = useMemo(() => createModelWorker(), []);
+  const model = useModelGate(modelWorker.client);
   const runIdRef = useRef(0);
 
-  useEffect(() => {
-    const detector = createDetector();
-    detectorRef.current = detector;
-    return () => {
-      detector.terminate();
-      detectorRef.current = null;
-    };
-  }, []);
+  useEffect(() => () => modelWorker.terminate(), [modelWorker]);
 
   async function handleFile(file: File) {
     setScreen({ name: 'analyzing', filename: file.name });
     const text = await file.text();
-    const spans = await detectorRef.current!.detect(text);
+    const spans = await modelWorker.detector.detect(text);
     setScreen({
       name: 'review',
       id: ++runIdRef.current,

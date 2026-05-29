@@ -115,9 +115,10 @@ export const BUILTIN_PATTERNS: DetectorPattern[] = [
   },
 ];
 
-// Pure detection over the built-in patterns plus any custom ones. No worker,
-// no DOM — safe to import directly from tests and (later) the NER layer.
-export function runDetectors(text: string, customPatterns: CustomPattern[] = []): Span[] {
+// Built-in + custom patterns as scored (un-merged) spans. Exposed so the worker
+// can fold these into one merge alongside the NER layer's spans. No worker, no
+// DOM — safe to import from tests.
+export function regexScoredSpans(text: string, customPatterns: CustomPattern[] = []): ScoredSpan[] {
   const patterns: DetectorPattern[] = [
     ...BUILTIN_PATTERNS,
     ...customPatterns.map((c) => ({ ...c, confidence: CUSTOM_CONFIDENCE })),
@@ -138,5 +139,11 @@ export function runDetectors(text: string, customPatterns: CustomPattern[] = [])
     }
   }
 
-  return mergeSpans(scored);
+  return scored;
+}
+
+// The regex-only detection surface (merges its own spans). Unchanged for the
+// existing callers/tests; the worker now merges across layers itself.
+export function runDetectors(text: string, customPatterns: CustomPattern[] = []): Span[] {
+  return mergeSpans(regexScoredSpans(text, customPatterns));
 }
