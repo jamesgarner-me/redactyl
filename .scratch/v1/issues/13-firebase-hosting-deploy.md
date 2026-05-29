@@ -40,14 +40,14 @@ None — can start immediately.
   `**`, `/index.html` → `no-cache`, `/assets/**` → `immutable` 1-year cache.
   Verified `pnpm build` emits exactly `dist/index.html` + `dist/assets/**`, so
   the globs match the real output.
-- `.firebaserc` — `default` project alias set to **`redactyl`** (placeholder).
-  ⚠️ Change this to the real Firebase project ID if it differs; the two CI
-  workflows (issue 14) hardcode the same `projectId` and must match.
+- `.firebaserc` — `default` project alias set to **`redactyl-aaa111`** (the real
+  Firebase project ID). The two CI workflows (issue 14) hardcode the same
+  `projectId`.
 
 **Remaining human steps (this issue stays `ready-for-human` until done):**
 
-1. Create the Firebase project (Spark/free tier per ADR 0001) and confirm the
-   project ID matches `.firebaserc` + the workflows.
+1. Create the Firebase project `redactyl-aaa111` (Spark/free tier per ADR 0001)
+   if it doesn't exist yet.
 2. `pnpm build && firebase deploy --only hosting` from a local machine once
    (proves the config before CI takes over).
 3. Add `redactyl.jamesgarner.me` as a custom domain on the site; add the A

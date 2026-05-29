@@ -42,10 +42,9 @@ emits: `pnpm/action-setup@v4` (version resolved from the new `package.json`
 **Remaining human steps (need the Firebase project from issue 13):**
 
 1. Generate the service-account key and store it as the repo secret
-   **`FIREBASE_SERVICE_ACCOUNT_REDACTYL`** (the name both workflows reference).
-   `firebase init hosting:github` does this; or create the key in the GCP console
-   and add it under Settings → Secrets → Actions. Rename here + in both workflows
-   if you prefer a different secret name.
-2. Confirm `projectId: redactyl` in both workflows matches the real project.
-3. Verify: a push to `main` updates the live site with no local `firebase deploy`;
+   **`FIREBASE_SERVICE_ACCOUNT_REDACTYL_AAA111`** (the name both workflows
+   reference, matching `firebase init hosting:github`'s convention for project
+   `redactyl-aaa111`). `firebase init hosting:github` does this; or create the
+   key in the GCP console and add it under Settings → Secrets → Actions.
+2. Verify: a push to `main` updates the live site with no local `firebase deploy`;
    a PR gets a preview URL whose frame reports `crossOriginIsolated === true`.
