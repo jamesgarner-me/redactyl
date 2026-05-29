@@ -337,6 +337,178 @@ body {
   margin: 0 0 1.25rem;
 }
 
+/* Download explainer — disclaimer + "how does this work" panel. Left-aligned;
+   the rest of the card is centred. */
+.model-disclaimer {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin: 1.5rem 0 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  text-align: left;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.model-disclaimer-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.model-disclaimer-attr {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--text-dim);
+}
+
+.model-explainer {
+  margin: 1rem 0 0;
+  text-align: left;
+}
+
+.model-explainer > summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  margin: 1rem 0;
+}
+
+.pipeline-node {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.85rem;
+}
+
+/* The final stage is the "done" beat — tint it with success, not accent. */
+.pipeline-node:last-child {
+  border-left-color: var(--success);
+}
+
+/* Vertical connector between stages — accent, to break up the blue. */
+.pipeline-node:not(:last-child) {
+  margin-bottom: 1.1rem;
+  position: relative;
+}
+
+.pipeline-node:not(:last-child)::after {
+  content: '↓';
+  position: absolute;
+  left: 50%;
+  bottom: -1rem;
+  transform: translateX(-50%);
+  color: var(--accent);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.pipeline-label {
+  display: block;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.pipeline-node:last-child .pipeline-label {
+  color: var(--success);
+}
+
+.pipeline-desc {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.pipeline-subnodes {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.pipeline-subnode {
+  flex: 1;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 0.78rem;
+}
+
+.pipeline-sublabel {
+  display: block;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pipeline-subdesc {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+/* The AI-model layer is the one downloading now — tint it accent. */
+.pipeline-ner {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.pipeline-ner .pipeline-sublabel {
+  color: var(--accent);
+}
+
+/* Bottom section: the model's own details, fenced off from the pipeline. */
+.model-detail {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.model-describe {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin: 0 0 1rem;
+}
+
+.model-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.model-fact {
+  display: contents;
+}
+
+.model-facts dt {
+  color: var(--text-dim);
+}
+
+.model-facts dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
 /* Interim screens */
 .interim {
   text-align: center;
@@ -351,6 +523,18 @@ body {
 .interim-label {
   color: var(--text-dim);
   margin: 0;
+}
+
+.interim-progress {
+  max-width: 320px;
+  margin: 1.25rem auto 0;
+}
+
+.interim-progress-meta {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin: 0.5rem 0 0;
 }
 
 .spinner {
@@ -526,6 +710,13 @@ body {
   margin-top: 0.15rem;
 }
 
+.advanced-hint {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 0.15rem;
+}
+
 /* Redact bar */
 .redact-bar {
   display: flex;
@@ -569,6 +760,14 @@ body {
 
 .empty-caveat {
   color: var(--text-dim);
+}
+
+/* The Advanced regex toggle is left-aligned text inside a centred empty state. */
+.empty-regex-toggle {
+  display: inline-flex;
+  text-align: left;
+  max-width: 360px;
+  margin: 1rem auto 0.5rem;
 }
 
 .output-card {

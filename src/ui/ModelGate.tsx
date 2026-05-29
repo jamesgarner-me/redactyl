@@ -1,4 +1,5 @@
 import type { ModelState } from '../model/modelGate';
+import { ProcessExplainer } from './ProcessExplainer';
 
 interface Props {
   state: ModelState;
@@ -29,23 +30,30 @@ export function ModelGate({ state, onDownload, onRetry, onCancel }: Props) {
 
   if (state.name === 'downloading') {
     const p = state.progress;
-    const pct = p && p.total > 0 ? Math.round((p.loaded / p.total) * 100) : 0;
+    const hasBytes = p != null && p.total > 0;
+    const pct = hasBytes ? Math.round((p.loaded / p.total) * 100) : 0;
     return (
       <div className="model-card" aria-live="polite">
         <h2 className="model-title">Downloading PII model…</h2>
-        <progress className="model-progress" max={100} value={pct} aria-label="Download progress" />
+        {/* No `value` until bytes arrive → an indeterminate bar while the runtime
+            boots and the first file is being fetched. */}
+        <progress
+          className="model-progress"
+          max={100}
+          value={hasBytes ? pct : undefined}
+          aria-label="Download progress"
+        />
         <p className="model-meta">
-          <span className="model-file">{p ? p.file : 'starting…'}</span>
-          {p && (
-            <span className="model-bytes">
-              {formatBytes(p.loaded)} / {formatBytes(p.total)} · {pct}%
-            </span>
-          )}
+          <span className="model-file">{p?.file ?? 'starting the model runtime…'}</span>
+          <span className="model-bytes">
+            {hasBytes ? `${formatBytes(p.loaded)} / ${formatBytes(p.total)} · ${pct}%` : 'fetching…'}
+          </span>
         </p>
         <button type="button" className="ghost-button" onClick={onCancel}>
           Cancel
         </button>
         <p className="model-note">Keep this tab open — leaving now restarts the download.</p>
+        <ProcessExplainer />
       </div>
     );
   }
