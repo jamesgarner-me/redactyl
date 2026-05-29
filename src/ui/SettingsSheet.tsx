@@ -7,11 +7,20 @@ interface Props {
   // disabled slots, per the PRD's "slot for future prefs".
   onRedownload?: () => void;
   onClearCache?: () => void;
+  regexEnabled: boolean;
+  onToggleRegex: () => void;
 }
 
-// The ⚙ sheet. Holds model-cache actions only — theme lives in the top bar
-// toggle and is deliberately not duplicated here.
-export function SettingsSheet({ open, onClose, onRedownload, onClearCache }: Props) {
+// The ⚙ sheet. Holds detection prefs and model-cache actions — theme lives in
+// the top bar toggle and is deliberately not duplicated here.
+export function SettingsSheet({
+  open,
+  onClose,
+  onRedownload,
+  onClearCache,
+  regexEnabled,
+  onToggleRegex,
+}: Props) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -38,6 +47,19 @@ export function SettingsSheet({ open, onClose, onRedownload, onClearCache }: Pro
             ×
           </button>
         </header>
+        <section className="sheet-section">
+          <h3>Detection</h3>
+          <label className="advanced-option">
+            <input type="checkbox" checked={regexEnabled} onChange={onToggleRegex} />
+            <span>
+              Regex pattern matching
+              <span className="advanced-hint">
+                On by default. Catches patterned values (emails, phones, TFNs) the model misses in
+                prose. Toggling re-scans the current file.
+              </span>
+            </span>
+          </label>
+        </section>
         <section className="sheet-section">
           <h3>Model cache</h3>
           <p className="sheet-hint">The PII detection model is cached locally in your browser.</p>

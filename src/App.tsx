@@ -143,6 +143,8 @@ export default function App() {
       <SettingsSheet
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        regexEnabled={regexEnabled}
+        onToggleRegex={handleToggleRegex}
         // Recovery actions only make sense once the model is cached.
         onRedownload={
           modelReady
@@ -201,8 +203,6 @@ export default function App() {
             filename={screen.filename}
             text={screen.text}
             items={screen.items}
-            regexEnabled={regexEnabled}
-            onToggleRegex={handleToggleRegex}
             onRedact={handleRedact}
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />

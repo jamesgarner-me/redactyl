@@ -18,9 +18,7 @@ export function Analyzing({ filename, label, progress }: Props) {
       {pct !== null && (
         <div className="interim-progress">
           <progress className="model-progress" value={progress!.processed} max={progress!.total} />
-          <p className="interim-progress-meta">
-            Scanning section {progress!.processed} of {progress!.total} · {pct}%
-          </p>
+          <p className="interim-progress-meta">{pct}% complete</p>
         </div>
       )}
     </div>

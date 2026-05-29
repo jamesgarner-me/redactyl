@@ -24,19 +24,23 @@ function saveBlob(target: SaveTarget) {
 export function Receipt({ outputName, blob, mapping, onRedactAnother }: Props) {
   return (
     <div className="receipt">
-      <h2 className="receipt-title">Done, ready to save</h2>
+      <h2 className="receipt-title">Complete</h2>
       <div className="output-card">
-        <span className="output-name">{outputName}</span>
+        <div className="output-meta">
+          <span className="output-label">Redacted file</span>
+          <span className="output-name">{outputName}</span>
+        </div>
         <button type="button" className="save" onClick={() => saveBlob({ name: outputName, blob })}>
           ↓ save
         </button>
       </div>
       {mapping && (
         <div className="output-card mapping-card">
-          <div className="mapping-card-text">
+          <div className="output-meta">
+            <span className="output-label">Re-identification mapping</span>
             <span className="output-name">{mapping.name}</span>
             <span className="mapping-warning">
-              ⚠ Re-identification mapping. Anyone with this file can reverse the redaction.
+              ⚠ Anyone with this file can reverse the redaction.
             </span>
           </div>
           <button type="button" className="save" onClick={() => saveBlob(mapping)}>

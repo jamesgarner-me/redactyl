@@ -11,8 +11,6 @@ interface Props {
   filename: string;
   text: string;
   items: Item[];
-  regexEnabled: boolean;
-  onToggleRegex: () => void;
   onRedact: (acceptedSpans: Span[], saveMapping: boolean) => void;
   onRedactAnother: () => void;
 }
@@ -26,15 +24,7 @@ function toggled(set: Set<string>, key: string): Set<string> {
 
 // The core screen. Owns the per-Item opt-out state (Exclude / Dismiss / reveal);
 // remounts per analysis (App keys it) so the state resets for each new file.
-export function ReviewScreen({
-  filename,
-  text,
-  items,
-  regexEnabled,
-  onToggleRegex,
-  onRedact,
-  onRedactAnother,
-}: Props) {
+export function ReviewScreen({ filename, text, items, onRedact, onRedactAnother }: Props) {
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
@@ -61,15 +51,6 @@ export function ReviewScreen({
         <p className="empty-caveat">
           Detection isn't perfect, so eyeball your file before pasting. No output file is produced.
         </p>
-        <label className="advanced-option empty-regex-toggle">
-          <input type="checkbox" checked={regexEnabled} onChange={onToggleRegex} />
-          <span>
-            Regex pattern matching
-            <span className="advanced-hint">
-              On by default. Toggling re-scans this file.
-            </span>
-          </span>
-        </label>
         <button type="button" className="link-button" onClick={onRedactAnother}>
           Redact another file
         </button>
@@ -171,31 +152,19 @@ export function ReviewScreen({
           {showAdvanced ? '▾' : '▸'} Advanced
         </button>
         {showAdvanced && (
-          <>
-            <label className="advanced-option">
-              <input type="checkbox" checked={regexEnabled} onChange={onToggleRegex} />
-              <span>
-                Regex pattern matching
-                <span className="advanced-hint">
-                  On by default. Catches patterned values (emails, phones, TFNs) the model
-                  misses in prose. Toggling re-scans this file.
-                </span>
+          <label className="advanced-option">
+            <input
+              type="checkbox"
+              checked={saveMapping}
+              onChange={() => setSaveMapping((s) => !s)}
+            />
+            <span>
+              Also save a re-identification mapping
+              <span className="advanced-warning">
+                Anyone with this file can reverse the redaction.
               </span>
-            </label>
-            <label className="advanced-option">
-              <input
-                type="checkbox"
-                checked={saveMapping}
-                onChange={() => setSaveMapping((s) => !s)}
-              />
-              <span>
-                Also save a re-identification mapping
-                <span className="advanced-warning">
-                  Anyone with this file can reverse the redaction.
-                </span>
-              </span>
-            </label>
-          </>
+            </span>
+          </label>
         )}
       </div>
       <RedactButton

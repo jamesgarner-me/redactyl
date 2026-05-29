@@ -4,3 +4,6 @@ dist-ssr
 *.local
 .DS_Store
 *.log
+
+# Service-account keys / credentials — never commit
+*-key.json

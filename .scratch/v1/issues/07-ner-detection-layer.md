@@ -1,6 +1,6 @@
 # NER detection layer in the worker
 
-Status: ready-for-human
+Status: completed
 
 ## Parent
 
@@ -50,3 +50,16 @@ loads transformers.js + ONNX-Runtime, fetches `config.json` from HF with no erro
 a name + address + email; confirm `PERSON`/`ADDRESS`/`EMAIL` Items appear with correct Tokens and line
 locators, regex+NER overlaps don't double-redact, and both WebGPU and WASM paths work. The open risk is
 whether transformers.js v4.2.0 fully supports `openai/privacy-filter`'s architecture at load+inference.
+
+### Detection-quality extensions landed — see issue 18 (2026-05-29, agent)
+
+Quality work building on this layer shipped in `6cd80a6` and `d71d78d`, now tracked under
+`.scratch/v1/issues/18-detection-quality.md` (completed): NER input chunking on line boundaries
+with overlap (ADR 0002), occurrence propagation, a deterministic labelled-field detector, and the
+Advanced regex toggle.
+
+The **chunk-boundary name-splitting risk noted above is resolved**: the original 2,000-char
+whitespace splitter sliced a heading name (`Domingo H. Salvatierra`) across a boundary so neither
+fragment kept enough context and the name leaked. Chunking now breaks only on line boundaries with
+512-char overlap, so a heading or short line is never split. The transformers.js-architecture risk
+remains the open item for the human device smoke.

@@ -27,12 +27,9 @@ export function ProcessExplainer() {
   return (
     <>
       <blockquote className="model-disclaimer">
-        <span className="model-disclaimer-icon" aria-hidden="true">
-          ⚠
-        </span>
         <span>
-          “Privacy Filter is a redaction and data minimization aid, not an anonymization,
-          compliance, or a safety guarantee.”
+          Privacy Filter is a redaction and data minimization aid, not an anonymization,
+          compliance, or a safety guarantee.
           <span className="model-disclaimer-attr">
             -- OpenAI Privacy Filter model card{' '}
             <a href={MODEL_CARD_URL} target="_blank" rel="noopener noreferrer">
