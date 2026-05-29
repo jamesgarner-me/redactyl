@@ -1,0 +1,65 @@
+// The consent-first gate for the 770 MB PII detection model. This module is the
+// pure state machine; effects (probe, download, cancel, clear) live in the
+// useModelGate hook, and the actual transformers.js download arrives in slice 7
+// behind the ModelClient interface. See the PRD's "Model gate" screen.
+
+export interface ModelProgress {
+  // The file transformers.js is currently fetching (e.g. onnx/model_quantized.onnx).
+  file: string;
+  loaded: number;
+  total: number;
+}
+
+export type ModelState =
+  | { name: 'probing' } // checking IndexedDB cache on load
+  | { name: 'missing' } // first visit — the quiet card
+  | { name: 'downloading'; progress: ModelProgress | null }
+  | { name: 'ready' }
+  | { name: 'error'; message: string };
+
+export type ModelEvent =
+  | { type: 'probe_hit' } // cache probe found the model
+  | { type: 'probe_miss' } // no cached model
+  | { type: 'download_start' } // begin (or re-)download / retry
+  | { type: 'progress'; progress: ModelProgress }
+  | { type: 'download_success' }
+  | { type: 'download_error'; message: string }
+  | { type: 'cancel' }
+  | { type: 'clear' }; // Clear cache → back to the gate
+
+// The download mechanism, abstracted so the gate UX can be built and tested
+// without transformers.js (slice 7 supplies the real implementation).
+export interface ModelClient {
+  probe(): Promise<boolean>;
+  download(opts: {
+    onProgress: (progress: ModelProgress) => void;
+    signal: AbortSignal;
+  }): Promise<void>;
+  clear(): Promise<void>;
+}
+
+export const initialModelState: ModelState = { name: 'probing' };
+
+export function modelGateReducer(state: ModelState, event: ModelEvent): ModelState {
+  switch (event.type) {
+    case 'probe_hit':
+      return state.name === 'probing' ? { name: 'ready' } : state;
+    case 'probe_miss':
+      return state.name === 'probing' ? { name: 'missing' } : state;
+    case 'download_start':
+      // From the gate (missing / error retry) or a Re-download while ready.
+      return state.name === 'downloading' ? state : { name: 'downloading', progress: null };
+    case 'progress':
+      return state.name === 'downloading'
+        ? { name: 'downloading', progress: event.progress }
+        : state;
+    case 'download_success':
+      return state.name === 'downloading' ? { name: 'ready' } : state;
+    case 'download_error':
+      return state.name === 'downloading' ? { name: 'error', message: event.message } : state;
+    case 'cancel':
+      return state.name === 'downloading' ? { name: 'missing' } : state;
+    case 'clear':
+      return { name: 'missing' };
+  }
+}

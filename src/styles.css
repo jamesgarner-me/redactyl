@@ -135,6 +135,10 @@ body {
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
   border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.model-chip.ready {
   color: var(--success);
 }
 
@@ -247,6 +251,90 @@ body {
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
+}
+
+/* Model gate */
+.model-card {
+  max-width: 520px;
+  margin: 2rem auto;
+  padding: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.model-promise {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin: 0 0 1.5rem;
+}
+
+.model-promise strong {
+  color: var(--text);
+}
+
+.model-download {
+  font-size: 1rem;
+}
+
+.model-title {
+  font-size: 1.05rem;
+  margin: 0 0 1rem;
+}
+
+.model-progress {
+  width: 100%;
+  height: 10px;
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.model-progress::-webkit-progress-bar {
+  background: var(--surface-2);
+}
+
+.model-progress::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.model-progress::-moz-progress-bar {
+  background: var(--accent);
+}
+
+.model-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin: 0.6rem 0 1.25rem;
+}
+
+.model-file {
+  word-break: break-all;
+  text-align: left;
+}
+
+.model-bytes {
+  white-space: nowrap;
+}
+
+.model-note {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin: 1rem 0 0;
+}
+
+.model-error {
+  color: var(--danger);
+  margin: 0 0 1.25rem;
 }
 
 /* Interim screens */

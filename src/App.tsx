@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createDetector, type Detector } from './detection/detector';
 import { groupItems } from './domain/items';
 import type { Item, Span } from './domain/types';
@@ -11,7 +11,10 @@ import { Analyzing } from './ui/Analyzing';
 import { ReviewScreen } from './ui/ReviewScreen';
 import { Receipt } from './ui/Receipt';
 import { SettingsSheet } from './ui/SettingsSheet';
+import { ModelGate } from './ui/ModelGate';
 import { useTheme } from './ui/useTheme';
+import { useModelGate } from './model/useModelGate';
+import { createMockModelClient } from './model/mockModelClient';
 import { isDemoEnabled } from './demo/flag';
 import { sampleReview } from './demo/sampleDocument';
 
@@ -38,6 +41,8 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'dropzone' });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, toggleTheme] = useTheme();
+  const modelClient = useMemo(() => createMockModelClient(), []);
+  const model = useModelGate(modelClient);
   const detectorRef = useRef<Detector | null>(null);
   const runIdRef = useRef(0);
 
@@ -99,9 +104,12 @@ export default function App() {
     }, 600);
   }
 
+  const modelReady = model.state.name === 'ready';
+
   return (
     <div className="app">
       <TopBar
+        modelStatus={model.state.name}
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setSettingsOpen(true)}
@@ -109,8 +117,39 @@ export default function App() {
       <p className="small-screen-advisory" role="note">
         Redactyl works best on desktop — 770 MB one-time download and heavy in-browser processing.
       </p>
-      <main className="surface">{renderScreen()}</main>
-      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <main className="surface">
+        {modelReady ? (
+          renderScreen()
+        ) : (
+          <ModelGate
+            state={model.state}
+            onDownload={model.startDownload}
+            onRetry={model.retry}
+            onCancel={model.cancel}
+          />
+        )}
+      </main>
+      <SettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        // Recovery actions only make sense once the model is cached.
+        onRedownload={
+          modelReady
+            ? () => {
+                setSettingsOpen(false);
+                model.startDownload();
+              }
+            : undefined
+        }
+        onClearCache={
+          modelReady
+            ? () => {
+                setSettingsOpen(false);
+                void model.clearCache();
+              }
+            : undefined
+        }
+      />
     </div>
   );
 

@@ -1,6 +1,6 @@
 # Model gate state machine + download UX
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 
@@ -14,15 +14,19 @@ Implement `ModelGate` with the state machine `MODEL_MISSING → MODEL_DOWNLOADIN
 
 ## Acceptance criteria
 
-- [ ] State machine transitions match the PRD diagram, including cache-probe → `MODEL_READY`
-- [ ] First visit shows the quiet card with the privacy promise and a single download button
-- [ ] File drop is disabled in `MODEL_MISSING`, `MODEL_DOWNLOADING`, `MODEL_ERROR`
-- [ ] Progress bar shows bytes loaded, total, percentage, and current file
-- [ ] Cancel works and a `beforeunload` warning is registered only while downloading
-- [ ] Errors surface a clear message with a working Retry
-- [ ] Returning visit with cached model skips the gate entirely
-- [ ] `Model: ready ✓` chip shows when ready; Re-download / Clear cache live in settings, with Clear returning to the gate
-- [ ] State-transition unit tests with the worker mocked (does not exercise transformers.js)
+- [x] State machine transitions match the PRD diagram, including cache-probe → `MODEL_READY`
+- [x] First visit shows the quiet card with the privacy promise and a single download button
+- [x] File drop is disabled in `MODEL_MISSING`, `MODEL_DOWNLOADING`, `MODEL_ERROR`
+- [x] Progress bar shows bytes loaded, total, percentage, and current file
+- [x] Cancel works and a `beforeunload` warning is registered only while downloading
+- [x] Errors surface a clear message with a working Retry
+- [x] Returning visit with cached model skips the gate entirely
+- [x] `Model: ready ✓` chip shows when ready; Re-download / Clear cache live in settings, with Clear returning to the gate
+- [x] State-transition unit tests with the worker mocked (does not exercise transformers.js)
+
+Verified live in the browser (Chrome): quiet card → progress (file/bytes/%/cancel) → ready chip → dropzone; cache-skip on reload; Clear cache returns to the gate; `?modelfail` exercises the error → Retry → success path; `beforeunload` present only while downloading.
+
+**Note:** the real transformers.js client (replacing `mockModelClient`) lands in slice 7 behind the `ModelClient` interface; the mock simulates the 770 MB multi-file download, cancel, and a `localStorage` cache flag.
 
 ## Blocked by
 
