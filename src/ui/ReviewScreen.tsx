@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { bucketFor, isMasked, maskHint } from '../domain/buckets';
 import { itemKey } from '../domain/items';
-import { formatLocator, itemLines, makeLineIndex } from '../domain/locators';
 import type { Item, Span } from '../domain/types';
 import { EntityReviewList, type ReviewRow } from './EntityReviewList';
 import { RedactButton } from './RedactButton';
@@ -9,8 +8,12 @@ import { SummaryStrip, type BucketChip } from './SummaryStrip';
 
 interface Props {
   filename: string;
-  text: string;
   items: Item[];
+  // Source-specific locator: line numbers for text, page numbers for PDFs.
+  locate: (item: Item) => string;
+  // The mapping sidecar only makes sense for token-substituted text output; the
+  // PDF path blanks glyphs (no tokens), so it hides the option.
+  allowMapping: boolean;
   onRedact: (acceptedSpans: Span[], saveMapping: boolean) => void;
   onRedactAnother: () => void;
 }
@@ -24,7 +27,14 @@ function toggled(set: Set<string>, key: string): Set<string> {
 
 // The core screen. Owns the per-Item opt-out state (Exclude / Dismiss / reveal);
 // remounts per analysis (App keys it) so the state resets for each new file.
-export function ReviewScreen({ filename, text, items, onRedact, onRedactAnother }: Props) {
+export function ReviewScreen({
+  filename,
+  items,
+  locate,
+  allowMapping,
+  onRedact,
+  onRedactAnother,
+}: Props) {
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
@@ -32,17 +42,18 @@ export function ReviewScreen({ filename, text, items, onRedact, onRedactAnother 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saveMapping, setSaveMapping] = useState(false);
 
-  // Precompute each Item's key, Bucket, mask flag and line locators once.
-  const views = useMemo(() => {
-    const lineAt = makeLineIndex(text);
-    return items.map((item) => ({
-      key: itemKey(item.category, item.value),
-      item,
-      bucket: bucketFor(item.category),
-      maskable: isMasked(item.category),
-      lines: itemLines(item, lineAt),
-    }));
-  }, [items, text]);
+  // Precompute each Item's key, Bucket, mask flag and locator once.
+  const views = useMemo(
+    () =>
+      items.map((item) => ({
+        key: itemKey(item.category, item.value),
+        item,
+        bucket: bucketFor(item.category),
+        maskable: isMasked(item.category),
+        locator: locate(item),
+      })),
+    [items, locate],
+  );
 
   if (items.length === 0) {
     return (
@@ -81,7 +92,7 @@ export function ReviewScreen({ filename, text, items, onRedact, onRedactAnother 
     maskable: v.maskable,
     revealed: revealed.has(v.key),
     occurrences: v.item.spans.length,
-    locator: formatLocator(v.lines),
+    locator: v.locator,
     excluded: excluded.has(v.key),
   }));
 
@@ -142,31 +153,33 @@ export function ReviewScreen({ filename, text, items, onRedact, onRedactAnother 
           )}
         </div>
       )}
-      <div className="advanced-footer">
-        <button
-          type="button"
-          className="link-button"
-          aria-expanded={showAdvanced}
-          onClick={() => setShowAdvanced((s) => !s)}
-        >
-          {showAdvanced ? '▾' : '▸'} Advanced
-        </button>
-        {showAdvanced && (
-          <label className="advanced-option">
-            <input
-              type="checkbox"
-              checked={saveMapping}
-              onChange={() => setSaveMapping((s) => !s)}
-            />
-            <span>
-              Also save a re-identification mapping
-              <span className="advanced-warning">
-                Anyone with this file can reverse the redaction.
+      {allowMapping && (
+        <div className="advanced-footer">
+          <button
+            type="button"
+            className="link-button"
+            aria-expanded={showAdvanced}
+            onClick={() => setShowAdvanced((s) => !s)}
+          >
+            {showAdvanced ? '▾' : '▸'} Advanced
+          </button>
+          {showAdvanced && (
+            <label className="advanced-option">
+              <input
+                type="checkbox"
+                checked={saveMapping}
+                onChange={() => setSaveMapping((s) => !s)}
+              />
+              <span>
+                Also save a re-identification mapping
+                <span className="advanced-warning">
+                  Anyone with this file can reverse the redaction.
+                </span>
               </span>
-            </span>
-          </label>
-        )}
-      </div>
+            </label>
+          )}
+        </div>
+      )}
       <RedactButton
         itemCount={accepted.length}
         occurrenceCount={occurrenceCount}

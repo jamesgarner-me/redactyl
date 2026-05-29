@@ -7,6 +7,9 @@ interface Props {
   outputName: string;
   blob: Blob;
   mapping?: SaveTarget;
+  // PDFs go through PdfVerifier (re-parse + re-detect) before reaching here, so
+  // we can assert the output is provably clean. Text output has no such pass.
+  verified?: boolean;
   onRedactAnother: () => void;
 }
 
@@ -21,10 +24,15 @@ function saveBlob(target: SaveTarget) {
   URL.revokeObjectURL(url);
 }
 
-export function Receipt({ outputName, blob, mapping, onRedactAnother }: Props) {
+export function Receipt({ outputName, blob, mapping, verified, onRedactAnother }: Props) {
   return (
     <div className="receipt">
       <h2 className="receipt-title">Complete</h2>
+      {verified && (
+        <p className="verified-badge" role="status">
+          ✓ Verified — no detectable PII in the output
+        </p>
+      )}
       <div className="output-card">
         <div className="output-meta">
           <span className="output-label">Redacted file</span>

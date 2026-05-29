@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createModelWorker } from './detection/detector';
 import { groupItems } from './domain/items';
+import {
+  formatLocator,
+  formatPageLocator,
+  itemLines,
+  makeLineIndex,
+  makePageIndex,
+} from './domain/locators';
 import type { Item, Span } from './domain/types';
 import { assignTokens } from './redaction/tokeniser';
 import { redact } from './redaction/textRedactor';
 import { buildMapping, mappingName } from './redaction/mappingExporter';
+import { extractPdf, type GlyphBox } from './pdf/pdfExtractor';
+import { redactPdf } from './pdf/pdfRedactor';
+import { verifyPdf } from './pdf/pdfVerifier';
 import { TopBar } from './ui/TopBar';
 import { FileDropZone } from './ui/FileDropZone';
 import { Analyzing } from './ui/Analyzing';
@@ -18,23 +28,40 @@ import { useModelGate } from './model/useModelGate';
 import { isDemoEnabled } from './demo/flag';
 import { sampleReview } from './demo/sampleDocument';
 
+// What the document was extracted from. PDFs carry the per-glyph geometry and
+// original bytes needed to redact (blank + black box) and re-verify the output.
+type ReviewBase =
+  | { source: 'text'; filename: string; text: string }
+  | { source: 'pdf'; filename: string; text: string; glyphs: GlyphBox[]; bytes: Uint8Array };
+
 type Screen =
   | { name: 'dropzone'; error?: string }
   | { name: 'analyzing'; filename: string; progress?: { processed: number; total: number } }
-  | { name: 'review'; id: number; filename: string; text: string; items: Item[] }
+  | ({ name: 'review'; id: number; items: Item[] } & ReviewBase)
   | { name: 'redacting'; filename: string }
   | {
       name: 'receipt';
       outputName: string;
       blob: Blob;
       mapping?: { name: string; blob: Blob };
+      verified?: boolean;
     };
 
-// `notes.txt` -> `notes.redacted.txt`; `notes.md` -> `notes.redacted.md`.
+// `notes.txt` -> `notes.redacted.txt`; `report.pdf` -> `report.redacted.pdf`.
 function redactedName(filename: string): string {
   const dot = filename.lastIndexOf('.');
   if (dot === -1) return `${filename}.redacted`;
   return `${filename.slice(0, dot)}.redacted${filename.slice(dot)}`;
+}
+
+// Source-specific review locator: page numbers for PDFs, line numbers for text.
+function makeLocator(review: ReviewBase): (item: Item) => string {
+  if (review.source === 'pdf') {
+    const pageAt = makePageIndex(review.glyphs);
+    return (item) => formatPageLocator(itemLines(item, pageAt));
+  }
+  const lineAt = makeLineIndex(review.text);
+  return (item) => formatLocator(itemLines(item, lineAt));
 }
 
 export default function App() {
@@ -48,26 +75,37 @@ export default function App() {
 
   useEffect(() => () => modelWorker.terminate(), [modelWorker]);
 
-  async function analyze(text: string, filename: string, regex: boolean) {
-    setScreen({ name: 'analyzing', filename });
-    const spans = await modelWorker.detector.detect(text, {
+  // Detect against the already-extracted text, then build the review screen,
+  // carrying the source-specific context (PDF glyphs + bytes) through unchanged.
+  async function analyze(base: ReviewBase, regex: boolean) {
+    setScreen({ name: 'analyzing', filename: base.filename });
+    const spans = await modelWorker.detector.detect(base.text, {
       regex,
       onProgress: (processed, total) =>
         setScreen((s) => (s.name === 'analyzing' ? { ...s, progress: { processed, total } } : s)),
     });
-    setScreen({
-      name: 'review',
-      id: ++runIdRef.current,
-      filename,
-      text,
-      items: groupItems(spans),
-    });
+    setScreen({ name: 'review', id: ++runIdRef.current, items: groupItems(spans), ...base });
   }
 
   async function handleFile(file: File) {
     setScreen({ name: 'analyzing', filename: file.name });
-    const text = await file.text();
-    await analyze(text, file.name, regexEnabled);
+    try {
+      if (/\.pdf$/i.test(file.name)) {
+        // Keep the original bytes — extractPdf copies internally (pdfjs neuters
+        // its input), so the same buffer feeds redaction later.
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const { text, glyphs } = await extractPdf(bytes);
+        await analyze({ source: 'pdf', filename: file.name, text, glyphs, bytes }, regexEnabled);
+      } else {
+        const text = await file.text();
+        await analyze({ source: 'text', filename: file.name, text }, regexEnabled);
+      }
+    } catch {
+      setScreen({
+        name: 'dropzone',
+        error: `Could not read ${file.name}. It may be encrypted or not a supported PDF.`,
+      });
+    }
   }
 
   // Toggling regex changes detection, so re-scan the current document to reflect
@@ -75,11 +113,24 @@ export default function App() {
   function handleToggleRegex() {
     const next = !regexEnabled;
     setRegexEnabled(next);
-    if (screen.name === 'review') void analyze(screen.text, screen.filename, next);
+    if (screen.name !== 'review') return;
+    const base: ReviewBase =
+      screen.source === 'pdf'
+        ? {
+            source: 'pdf',
+            filename: screen.filename,
+            text: screen.text,
+            glyphs: screen.glyphs,
+            bytes: screen.bytes,
+          }
+        : { source: 'text', filename: screen.filename, text: screen.text };
+    void analyze(base, next);
   }
 
   async function handleRedact(acceptedSpans: Span[], saveMapping: boolean) {
     if (screen.name !== 'review') return;
+    if (screen.source === 'pdf') return redactPdfFile(screen, acceptedSpans);
+
     const { filename, text } = screen;
     setScreen({ name: 'redacting', filename });
     // Let the redacting screen paint before the (synchronous) rewrite.
@@ -98,6 +149,38 @@ export default function App() {
     setScreen({ name: 'receipt', outputName: redactedName(filename), blob, mapping });
   }
 
+  // True PDF redaction: blank the glyphs + draw black boxes, then re-parse and
+  // re-detect. The guarantee is fail-closed — a verification leak blocks the
+  // download rather than shipping a still-leaky file (rasterise fallback is a
+  // later slice).
+  async function redactPdfFile(
+    review: Extract<ReviewBase, { source: 'pdf' }>,
+    acceptedSpans: Span[],
+  ) {
+    const { filename, bytes, glyphs } = review;
+    setScreen({ name: 'redacting', filename });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      const output = await redactPdf(bytes, acceptedSpans, glyphs);
+      const result = await verifyPdf(output, groupItems(acceptedSpans), (t) =>
+        modelWorker.detector.detect(t, { regex: regexEnabled }),
+      );
+      if (!result.ok) {
+        setScreen({
+          name: 'dropzone',
+          error: `Redaction couldn't be verified — ${result.leaks.length} value(s) still detected in the output. No file was produced.`,
+        });
+        return;
+      }
+      // Uint8Array.from yields an ArrayBuffer-backed copy (a valid BlobPart);
+      // pdf-lib's save() return is typed over the broader ArrayBufferLike.
+      const blob = new Blob([Uint8Array.from(output)], { type: 'application/pdf' });
+      setScreen({ name: 'receipt', outputName: redactedName(filename), blob, verified: true });
+    } catch {
+      setScreen({ name: 'dropzone', error: 'Could not redact this PDF. No file was produced.' });
+    }
+  }
+
   // Demo mode (?demo): replay the e2e flow from an embedded fixture so the UI
   // can be reviewed without a real file. Mirrors handleFile's analyzing beat.
   function loadSample() {
@@ -107,6 +190,7 @@ export default function App() {
       setScreen({
         name: 'review',
         id: ++runIdRef.current,
+        source: 'text',
         filename: sample.filename,
         text: sample.text,
         items: sample.items,
@@ -193,6 +277,7 @@ export default function App() {
             outputName={screen.outputName}
             blob={screen.blob}
             mapping={screen.mapping}
+            verified={screen.verified}
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />
         );
@@ -201,8 +286,9 @@ export default function App() {
           <ReviewScreen
             key={screen.id}
             filename={screen.filename}
-            text={screen.text}
             items={screen.items}
+            locate={makeLocator(screen)}
+            allowMapping={screen.source === 'text'}
             onRedact={handleRedact}
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />

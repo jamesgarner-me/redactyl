@@ -919,3 +919,15 @@ body {
 .receipt-title {
   font-size: 1.2rem;
 }
+
+/* Shown only for PDFs, which pass through PdfVerifier before download. */
+.verified-badge {
+  display: inline-block;
+  margin: 0.75rem auto 0;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}

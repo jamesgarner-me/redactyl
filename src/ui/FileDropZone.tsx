@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 
-const ACCEPTED = ['.txt', '.md'];
+const ACCEPTED = ['.txt', '.md', '.pdf'];
 
 function extensionOf(name: string): string {
   const dot = name.lastIndexOf('.');
@@ -25,7 +25,7 @@ export function FileDropZone({ onFile, onReject, error }: Props) {
     }
     const file = files[0];
     if (!ACCEPTED.includes(extensionOf(file.name))) {
-      onReject(`Redactyl handles .txt and .md in this build. "${file.name}" isn't supported.`);
+      onReject(`Redactyl handles .txt, .md and .pdf in this build. "${file.name}" isn't supported.`);
       return;
     }
     onFile(file);
@@ -53,7 +53,7 @@ export function FileDropZone({ onFile, onReject, error }: Props) {
       <input
         ref={inputRef}
         type="file"
-        accept=".txt,.md"
+        accept=".txt,.md,.pdf"
         hidden
         onChange={(e) => {
           handleFiles(e.target.files);
@@ -63,6 +63,7 @@ export function FileDropZone({ onFile, onReject, error }: Props) {
       <p className="dropzone-types">
         <span className="chip">.txt</span>
         <span className="chip">.md</span>
+        <span className="chip">.pdf</span>
       </p>
       {error && (
         <p className="dropzone-error" role="alert">
