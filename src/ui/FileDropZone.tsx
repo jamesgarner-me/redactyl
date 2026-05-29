@@ -20,7 +20,7 @@ export function FileDropZone({ onFile, onReject, error }: Props) {
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     if (files.length > 1) {
-      onReject(`One file at a time in v1 — you dropped ${files.length} files.`);
+      onReject(`One file at a time in v1. You dropped ${files.length} files.`);
       return;
     }
     const file = files[0];

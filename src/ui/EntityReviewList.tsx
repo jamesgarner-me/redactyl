@@ -51,7 +51,7 @@ export function EntityReviewList({ rows, onToggle, onReveal, onDismiss }: Props)
           <button
             type="button"
             className="row-dismiss"
-            aria-label={`Dismiss — not personal data: ${row.category} ${row.display}`}
+            aria-label={`Dismiss, not personal data: ${row.category} ${row.display}`}
             onClick={() => onDismiss(row.key)}
           >
             ×

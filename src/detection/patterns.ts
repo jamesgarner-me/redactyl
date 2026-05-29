@@ -37,6 +37,19 @@ function luhnValid(value: string): boolean {
   return sum % 10 === 0;
 }
 
+// ATO weighted mod-11 check for an Australian Tax File Number. A bare 9-digit
+// run is too common to mask blind, so the checksum gates it — ~91% of random
+// 9-digit numbers fail, and for a redaction tool the rare false positive (a
+// masked non-TFN) is the safe direction to err.
+const TFN_WEIGHTS = [1, 4, 3, 7, 5, 8, 6, 9, 10];
+function tfnValid(value: string): boolean {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length !== 9) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += (digits.charCodeAt(i) - 48) * TFN_WEIGHTS[i];
+  return sum % 11 === 0;
+}
+
 // ISO 7064 mod-97-10 check for an IBAN.
 function ibanValid(value: string): boolean {
   const compact = value.replace(/\s+/g, '').toUpperCase();
@@ -85,6 +98,15 @@ export const BUILTIN_PATTERNS: DetectorPattern[] = [
     confidence: 95,
     validate: ibanValid,
   },
+  // Australian TFN — 9 digits, optionally grouped 3-3-3. Classed as
+  // ACCOUNT_NUMBER (no dedicated category) so it shares the ID bucket and
+  // collapses with the model's account_number spans. Checksum-gated (above).
+  {
+    category: 'ACCOUNT_NUMBER',
+    pattern: /\b\d{3}[ -]?\d{3}[ -]?\d{3}\b/g,
+    confidence: 85,
+    validate: tfnValid,
+  },
 
   { category: 'EMAIL', pattern: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, confidence: 90 },
   { category: 'SSN', pattern: /\b\d{3}-\d{2}-\d{4}\b/g, confidence: 80 },
@@ -98,8 +120,14 @@ export const BUILTIN_PATTERNS: DetectorPattern[] = [
 
   // Ambiguous formats — lowest confidence, so structured matches win overlaps.
   {
+    // Three alternatives, tried in order: a bare international run (+CC then
+    // 10-15 digits); the 3-3-4 grouping (optionally with a +CC); and — last, so
+    // a true 3-3-4 isn't truncated — a +CC 3-3-3 grouping for AU mobiles like
+    // `+61 408 776 221`. The 3-3-3 branch requires the leading + so it never
+    // collides with a bare 9-digit TFN.
     category: 'PHONE',
-    pattern: /(?:\+\d{10,15})|(?:(?:\+\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4})/g,
+    pattern:
+      /(?:\+\d{10,15})|(?:(?:\+\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4})|(?:\+\d{1,3}[\s.-]?\d{3}[\s.-]\d{3}[\s.-]\d{3})/g,
     confidence: 40,
   },
   {

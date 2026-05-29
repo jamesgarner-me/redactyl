@@ -1,4 +1,4 @@
-# Release prep — README threat model, corpus regression, hosting
+# Release prep — README threat model, corpus regression
 
 Status: ready-for-human
 
@@ -8,17 +8,16 @@ Status: ready-for-human
 
 ## What to build
 
-Everything needed to ship v1 publicly — HITL because the hosting choice is a human decision and the threat-model README needs human review before it underwrites the product's trust claims.
+The non-hosting parts of shipping v1 publicly — HITL because the threat-model README needs human review before it underwrites the product's trust claims. Hosting itself is now decided (Firebase, see ADR 0001) and tracked under its own issues (`13`–`15`).
 
-Write a README explaining the threat model, what's stored where, and how a user can verify nothing leaves the browser (the static-site / no-backend architecture is observable in devtools as zero outgoing traffic after load; the verification pass is a user-facing guarantee, not just an internal net — explain how it works so a user can audit it). Run a real-world PDF corpus regression check across the slice 8–10 redaction pipeline (small, licence-clean fixtures documented in `test/fixtures/README.md`) and record results. Choose and configure static hosting (GitHub Pages or Cloudflare Pages) and deploy.
+Write a README explaining the threat model, what's stored where, and how a user can verify nothing leaves the browser (the static-site / no-backend architecture is observable in devtools as zero outgoing traffic after load; the verification pass is a user-facing guarantee, not just an internal net — explain how it works so a user can audit it). Run a real-world PDF corpus regression check across the slice 8–10 redaction pipeline (small, licence-clean fixtures documented in `test/fixtures/README.md`) and record results.
 
 ## Acceptance criteria
 
 - [ ] README documents the threat model, what's stored where (IndexedDB model, service-worker cache), and a devtools-based "nothing leaves the browser" verification walkthrough
 - [ ] README explains the verification pass so a user can audit the guarantee
 - [ ] Real-world PDF corpus regression run completed; results recorded; fixtures catalogued in `test/fixtures/README.md`
-- [ ] Static hosting chosen, configured, and the app deployed and reachable
-- [ ] Human sign-off on hosting choice and README wording
+- [ ] Human sign-off on README wording
 
 ## Blocked by
 

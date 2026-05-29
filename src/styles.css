@@ -108,15 +108,28 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+/* The wordmark doubles as "start over" — reset the button chrome so it reads
+   as branding, not a control, until hovered/focused. */
 .topbar-brand {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
+  padding: 0.2rem 0;
+  border: none;
+  background: none;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
 }
 
 .wordmark {
   font-weight: 700;
   font-size: 1.1rem;
+}
+
+.topbar-brand:hover .wordmark,
+.topbar-brand:focus-visible .wordmark {
+  color: var(--accent);
 }
 
 .tagline {
@@ -128,18 +141,6 @@ body {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-}
-
-.model-chip {
-  font-size: 0.78rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-}
-
-.model-chip.ready {
-  color: var(--success);
 }
 
 .icon-button {
@@ -718,11 +719,25 @@ body {
 }
 
 /* Redact bar */
+/* Docked action tray. Sticky-bottom keeps "Redact →" and the live counts in
+   view on long detection lists; on short lists it falls back to its natural
+   in-flow position (sticky only pins once it would scroll off-screen), so the
+   bar never floats over empty space. Full-bleed within the surface column via
+   negative margins that cancel the .surface padding. */
 .redact-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  margin: 1.5rem -1.25rem 0;
+  padding: 0.9rem 1.25rem;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 -10px 24px -16px rgba(0, 0, 0, 0.55);
 }
 
 .counts {

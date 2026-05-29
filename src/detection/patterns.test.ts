@@ -43,6 +43,35 @@ describe('PHONE', () => {
   it('does not match an unformatted short number or prose', () => {
     expect(valuesOf('order 12345 shipped', 'PHONE')).toEqual([]);
   });
+
+  it('matches an AU mobile written +61 with 3-3-3 grouping', () => {
+    expect(valuesOf('correspondence to +61 408 776 221 going forward', 'PHONE')).toEqual([
+      '+61 408 776 221',
+    ]);
+  });
+
+  it('still captures a full +CC 3-3-4 number without truncating the last group', () => {
+    // Regression: the new 3-3-3 branch must come last so this matches whole.
+    expect(valuesOf('ring +1 408 776 2211 anytime', 'PHONE')).toEqual(['+1 408 776 2211']);
+  });
+});
+
+describe('TFN (ACCOUNT_NUMBER)', () => {
+  it('matches a checksum-valid TFN, grouped or contiguous', () => {
+    // 123 456 782 satisfies the ATO weighted mod-11 check.
+    expect(valuesOf('tax identifier 123 456 782 on file', 'ACCOUNT_NUMBER')).toEqual([
+      '123 456 782',
+    ]);
+    expect(valuesOf('TFN 123456782 noted', 'ACCOUNT_NUMBER')).toEqual(['123456782']);
+  });
+
+  it('rejects a 9-digit run that fails the checksum', () => {
+    expect(valuesOf('reference 123 456 789 logged', 'ACCOUNT_NUMBER')).toEqual([]);
+  });
+
+  it('does not fire inside a longer digit run', () => {
+    expect(valuesOf('order 1234567820 shipped', 'ACCOUNT_NUMBER')).toEqual([]);
+  });
 });
 
 describe('URL', () => {

@@ -31,13 +31,14 @@ export function ProcessExplainer() {
           ⚠
         </span>
         <span>
-          “
-          <a href={MODEL_CARD_URL} target="_blank" rel="noopener noreferrer">
-            Privacy Filter is a redaction and data minimization aid, not an anonymization,
-            compliance, or a safety guarantee.
-          </a>
-          ”
-          <span className="model-disclaimer-attr">— OpenAI Privacy Filter model card</span>
+          “Privacy Filter is a redaction and data minimization aid, not an anonymization,
+          compliance, or a safety guarantee.”
+          <span className="model-disclaimer-attr">
+            OpenAI Privacy Filter model card{' '}
+            <a href={MODEL_CARD_URL} target="_blank" rel="noopener noreferrer">
+              (link)
+            </a>
+          </span>
         </span>
       </blockquote>
 
@@ -47,7 +48,7 @@ export function ProcessExplainer() {
         <div
           className="pipeline"
           role="img"
-          aria-label="Pipeline flow: File, then Extract, then Detect — which runs a pattern layer and a local AI-model layer — then Review, Redact, Verify, and Output."
+          aria-label="Pipeline flow: File, then Extract, then Detect (which runs a pattern layer and a local AI-model layer), then Review, Redact, Verify, and Output."
         >
           {STAGES.map((stage) =>
             stage.label === 'Detect' ? (
@@ -77,8 +78,8 @@ export function ProcessExplainer() {
         <div className="model-detail">
           <p className="model-describe">
             openai/privacy-filter is a token-classification model trained to identify personal data
-            in text. It runs entirely in this browser — on WebGPU where available, falling back to
-            WebAssembly otherwise — so no document content is ever sent anywhere.
+            in text. It runs entirely in this browser (on WebGPU where available, falling back to
+            WebAssembly otherwise), so no document content is ever sent anywhere.
           </p>
 
           <dl className="model-facts">

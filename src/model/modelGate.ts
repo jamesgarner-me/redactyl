@@ -4,7 +4,8 @@
 // behind the ModelClient interface. See the PRD's "Model gate" screen.
 
 export interface ModelProgress {
-  // The file transformers.js is currently fetching (e.g. onnx/model_quantized.onnx).
+  // A friendly label for what's downloading (the model id), held stable across
+  // all of the model's files so the UI doesn't flicker between filenames.
   file: string;
   loaded: number;
   total: number;

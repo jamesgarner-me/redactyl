@@ -7,7 +7,13 @@ import { clearNerPipeline, detectNer, loadNerPipeline } from './ner';
 type Incoming =
   | { type: 'load' }
   | { type: 'clear' }
-  | { type: 'detect'; id: number; text: string; customPatterns?: CustomPattern[] };
+  | {
+      type: 'detect';
+      id: number;
+      text: string;
+      customPatterns?: CustomPattern[];
+      regex?: boolean;
+    };
 
 const post = (message: unknown) =>
   (self as unknown as { postMessage(m: unknown): void }).postMessage(message);
@@ -38,9 +44,13 @@ self.onmessage = async (event: MessageEvent<Incoming>) => {
       return;
 
     case 'detect': {
-      // Regex (sync) + NER (only if the model is loaded/loading), merged once.
-      const regex = regexScoredSpans(msg.text, msg.customPatterns);
-      const ner = await detectNer(msg.text);
+      // NER (only if the model is loaded/loading) plus the regex sweep, which the
+      // caller can switch off (Advanced). Regex catches patterned values the model
+      // misses in prose, so it's on by default. Merged once either way.
+      const regex = msg.regex ? regexScoredSpans(msg.text, msg.customPatterns) : [];
+      const ner = await detectNer(msg.text, (processed, total) =>
+        post({ type: 'detect-progress', id: msg.id, processed, total }),
+      );
       post({ type: 'spans', id: msg.id, spans: mergeSpans([...regex, ...ner]) });
       return;
     }

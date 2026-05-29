@@ -19,12 +19,12 @@ export interface ModelGate {
 function describeError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
   if (/network|fetch|connection|offline/i.test(raw)) {
-    return 'Network error — check your connection and retry.';
+    return 'Network error. Check your connection and retry.';
   }
   if (/quota|disk|storage|space/i.test(raw)) {
     return 'Not enough storage to cache the 770 MB model. Free up disk space and retry.';
   }
-  return raw || 'Download failed — please retry.';
+  return raw || 'Download failed, please retry.';
 }
 
 export function useModelGate(client: ModelClient): ModelGate {

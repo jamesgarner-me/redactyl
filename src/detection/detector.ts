@@ -5,6 +5,7 @@ import type { CustomPattern } from './patterns';
 // Worker → main messages.
 type Outgoing =
   | { type: 'spans'; id: number; spans: Span[] }
+  | { type: 'detect-progress'; id: number; processed: number; total: number }
   | { type: 'progress'; file: string; loaded: number; total: number }
   | { type: 'ready' }
   | { type: 'error'; message: string }
@@ -13,7 +14,14 @@ type Outgoing =
 // The single externally-callable detection surface. Hides the worker boundary
 // behind a promise; both detection layers live inside the worker.
 export interface Detector {
-  detect(text: string, customPatterns?: CustomPattern[]): Promise<Span[]>;
+  detect(
+    text: string,
+    opts?: {
+      customPatterns?: CustomPattern[];
+      regex?: boolean;
+      onProgress?: (processed: number, total: number) => void;
+    },
+  ): Promise<Span[]>;
 }
 
 // One worker owns the model, shared by the gate client (download/probe/clear)
@@ -40,6 +48,7 @@ export function createModelWorker(): ModelWorker {
   let worker = spawn();
   let nextId = 0;
   const pending = new Map<number, (spans: Span[]) => void>();
+  const progressCbs = new Map<number, (processed: number, total: number) => void>();
   let activeLoad: {
     onProgress: (p: ModelProgress) => void;
     resolve: () => void;
@@ -59,10 +68,14 @@ export function createModelWorker(): ModelWorker {
           const resolve = pending.get(msg.id);
           if (resolve) {
             pending.delete(msg.id);
+            progressCbs.delete(msg.id);
             resolve(msg.spans);
           }
           break;
         }
+        case 'detect-progress':
+          progressCbs.get(msg.id)?.(msg.processed, msg.total);
+          break;
         case 'progress':
           activeLoad?.onProgress({ file: msg.file, loaded: msg.loaded, total: msg.total });
           break;
@@ -116,6 +129,7 @@ export function createModelWorker(): ModelWorker {
             // worker to truly stop the download.
             worker.terminate();
             pending.clear();
+            progressCbs.clear();
             worker = spawn();
             wire(worker);
             reject(new DOMException('Aborted', 'AbortError'));
@@ -140,12 +154,19 @@ export function createModelWorker(): ModelWorker {
   };
 
   const detector: Detector = {
-    detect(text, customPatterns) {
+    detect(text, opts) {
       const id = nextId++;
       return new Promise<Span[]>((resolve) => {
         pending.set(id, resolve);
+        if (opts?.onProgress) progressCbs.set(id, opts.onProgress);
         // RegExp is structured-cloneable, so customPatterns cross the boundary.
-        worker.postMessage({ type: 'detect', id, text, customPatterns });
+        worker.postMessage({
+          type: 'detect',
+          id,
+          text,
+          customPatterns: opts?.customPatterns,
+          regex: opts?.regex ?? false,
+        });
       });
     },
   };

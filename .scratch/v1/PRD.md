@@ -94,7 +94,7 @@ The product's central guarantee is **fail-closed**: if Redactyl can't be certain
 
 ### Architecture
 
-- **Stack:** Vite + React + TypeScript, served as a static single-page app. No backend. Static hosting (GitHub Pages or Cloudflare Pages) is decided at release prep.
+- **Stack:** Vite + React + TypeScript, served as a static single-page app. No backend. Hosted on **Firebase Hosting** at `redactyl.jamesgarner.me`; see [Hosting](#hosting) below and [ADR 0001](../../docs/adr/0001-browser-only-delivery-via-firebase-and-hf-cdn.md).
 - **Inference runtime:** transformers.js v4 running the OpenAI privacy-filter model in ONNX, with WebGPU acceleration and WASM fallback.
 - **Worker boundary:** All detection (regex + NER) runs in a single Web Worker so that the UI thread stays responsive during model load and inference.
 - **Persistence:** The model is cached in IndexedDB by transformers.js. The app and its dependencies are cached by a service worker (`vite-plugin-pwa`).
@@ -115,6 +115,16 @@ The implementation is organised around deep modules with simple interfaces. The 
 | `MappingExporter` | `build(tokens, filename) → MappingFile` | Mapping JSON construction |
 
 Shallow modules (orchestration / UI): `App` (state coordinator), `FileDropZone`, `EntityReviewList`, `RedactButton`.
+
+### Hosting
+
+Production URL: `redactyl.jamesgarner.me`. The site is served from **Firebase Hosting** (free Spark tier); the 770 MB NER model is fetched from the **HuggingFace CDN** at runtime, so Firebase serves only the Vite app shell. See [ADR 0001](../../docs/adr/0001-browser-only-delivery-via-firebase-and-hf-cdn.md) for the rationale and rejected alternatives (GCS + HTTPS Load Balancer; self-hosting the model).
+
+- **Headers** — `firebase.json` sets `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: credentialless` site-wide (mirroring `vite.config.ts`), required for the threaded ONNX WASM path. `/assets/**` is served `Cache-Control: public, max-age=31536000, immutable`; `/index.html` is `no-cache`.
+- **DNS** — `A` records on `redactyl.jamesgarner.me` at the GoDaddy registrar point at the Firebase-provided IPs; managed SSL is issued automatically.
+- **Deploys** — GitHub Actions builds and deploys on push to `main`; PRs receive Firebase preview channel URLs.
+- **Telemetry / CSP** — none in v1. The privacy claim rests on COOP/COEP plus the explicit absence of analytics and error reporting; the only outbound runtime call is the consent-gated HF model fetch.
+- **Browser compatibility consequence** — COEP `credentialless` means Safari < 17.4 cannot grant `SharedArrayBuffer`. The NER path must degrade gracefully on those browsers; this is a product-side concern (handled at the model gate), not a hosting one.
 
 ### Detection categories (v1)
 
@@ -260,7 +270,9 @@ A persistent, quiet top bar across every screen:
 ### Screen-by-screen
 
 **1 · Model gate** (first visit / `MODEL_MISSING`) — the "quiet card." Privacy promise leads ("Nothing leaves your device… 770MB one-time download, then cached locally, files never uploaded"), then a single primary `↓ Download PII model (770 MB)` button. File drop is disabled here.
-- *Downloading:* card content swaps in place to a determinate progress bar with **bytes loaded / total / percentage / current file**, a **Cancel** button, and a registered `beforeunload` warning.
+- *Downloading:* card content swaps in place to a determinate progress bar with **bytes loaded / total / percentage / current file**, a **Cancel** button, and a registered `beforeunload` warning. Below the progress card, two additional pieces are shown to make use of the captive moment:
+  - A **pinned disclaimer** (always visible, *not* inside the collapsible panel) rendered as a blockquote attributed to OpenAI with a link to the model card: *"Privacy Filter is a redaction and data minimization aid, not an anonymization, compliance, or a safety guarantee." — OpenAI Privacy Filter model card.*
+  - An **explainer panel** (`<details>`, default open) labeled "How does this process work?" containing (a) a vertical, HTML/CSS-rendered pipeline diagram `File → Extract → Detect (Regex + NER) → Review → Redact → Verify → Output` with the NER sub-step visually highlighted using `--accent` and a "downloading now" inline label; (b) a two-sentence description of the model; and (c) a 4-line definition list (`Model: openai/privacy-filter` · `Detects: people, addresses, account numbers` · `Runtime: in this browser` · `Size: 770 MB (quantised)`). The diagram is keyboard- and screen-reader-accessible (real DOM nodes, an `aria-label` describing the flow in prose, and the NER "current step" affordance carried in text as well as colour).
 - *Error:* clear message (network / disk) + **Retry**.
 - *Ready:* advances to the dropzone; on return visits the cache probe skips this screen entirely.
 

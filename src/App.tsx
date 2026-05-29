@@ -13,13 +13,14 @@ import { Receipt } from './ui/Receipt';
 import { SettingsSheet } from './ui/SettingsSheet';
 import { ModelGate } from './ui/ModelGate';
 import { useTheme } from './ui/useTheme';
+import { useRegexDetection } from './ui/useRegexDetection';
 import { useModelGate } from './model/useModelGate';
 import { isDemoEnabled } from './demo/flag';
 import { sampleReview } from './demo/sampleDocument';
 
 type Screen =
   | { name: 'dropzone'; error?: string }
-  | { name: 'analyzing'; filename: string }
+  | { name: 'analyzing'; filename: string; progress?: { processed: number; total: number } }
   | { name: 'review'; id: number; filename: string; text: string; items: Item[] }
   | { name: 'redacting'; filename: string }
   | {
@@ -40,23 +41,41 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'dropzone' });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, toggleTheme] = useTheme();
+  const [regexEnabled, setRegexEnabled] = useRegexDetection();
   const modelWorker = useMemo(() => createModelWorker(), []);
   const model = useModelGate(modelWorker.client);
   const runIdRef = useRef(0);
 
   useEffect(() => () => modelWorker.terminate(), [modelWorker]);
 
-  async function handleFile(file: File) {
-    setScreen({ name: 'analyzing', filename: file.name });
-    const text = await file.text();
-    const spans = await modelWorker.detector.detect(text);
+  async function analyze(text: string, filename: string, regex: boolean) {
+    setScreen({ name: 'analyzing', filename });
+    const spans = await modelWorker.detector.detect(text, {
+      regex,
+      onProgress: (processed, total) =>
+        setScreen((s) => (s.name === 'analyzing' ? { ...s, progress: { processed, total } } : s)),
+    });
     setScreen({
       name: 'review',
       id: ++runIdRef.current,
-      filename: file.name,
+      filename,
       text,
       items: groupItems(spans),
     });
+  }
+
+  async function handleFile(file: File) {
+    setScreen({ name: 'analyzing', filename: file.name });
+    const text = await file.text();
+    await analyze(text, file.name, regexEnabled);
+  }
+
+  // Toggling regex changes detection, so re-scan the current document to reflect
+  // it. The review screen is keyed by run id, so this remounts (state resets).
+  function handleToggleRegex() {
+    const next = !regexEnabled;
+    setRegexEnabled(next);
+    if (screen.name === 'review') void analyze(screen.text, screen.filename, next);
   }
 
   async function handleRedact(acceptedSpans: Span[], saveMapping: boolean) {
@@ -100,13 +119,14 @@ export default function App() {
   return (
     <div className="app">
       <TopBar
-        modelStatus={model.state.name}
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setSettingsOpen(true)}
+        onHome={() => setScreen({ name: 'dropzone' })}
       />
       <p className="small-screen-advisory" role="note">
-        Redactyl works best on desktop — 770 MB one-time download and heavy in-browser processing.
+        Redactyl works best on desktop. The detector is a small model run in-browser, with a
+        one-time 770 MB download and heavy local processing.
       </p>
       <main className="surface">
         {modelReady ? (
@@ -162,7 +182,7 @@ export default function App() {
           </>
         );
       case 'analyzing':
-        return <Analyzing filename={screen.filename} label="Analyzing…" />;
+        return <Analyzing filename={screen.filename} label="Analyzing…" progress={screen.progress} />;
       case 'redacting':
         return <Analyzing filename={screen.filename} label="Redacting…" />;
       case 'receipt':
@@ -181,6 +201,8 @@ export default function App() {
             filename={screen.filename}
             text={screen.text}
             items={screen.items}
+            regexEnabled={regexEnabled}
+            onToggleRegex={handleToggleRegex}
             onRedact={handleRedact}
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />

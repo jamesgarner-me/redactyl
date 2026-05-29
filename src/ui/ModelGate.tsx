@@ -52,7 +52,6 @@ export function ModelGate({ state, onDownload, onRetry, onCancel }: Props) {
         <button type="button" className="ghost-button" onClick={onCancel}>
           Cancel
         </button>
-        <p className="model-note">Keep this tab open — leaving now restarts the download.</p>
         <ProcessExplainer />
       </div>
     );
@@ -70,13 +69,13 @@ export function ModelGate({ state, onDownload, onRetry, onCancel }: Props) {
     );
   }
 
-  // missing — the quiet card: privacy promise leads, single primary action.
+  // missing: the quiet card. Privacy promise leads, single primary action.
   return (
     <div className="model-card">
       <p className="model-promise">
         <strong>Nothing leaves your device.</strong> Redactyl detects personal data entirely in
-        your browser. The detector is a one-time 770 MB download, cached locally — your files are
-        never uploaded.
+        your browser using a small model purpose-built for identifying PII. It downloads once (770
+        MB) and is cached locally, so your files are never uploaded.
       </p>
       <button type="button" className="redact model-download" onClick={onDownload}>
         ↓ Download PII model (770 MB)
