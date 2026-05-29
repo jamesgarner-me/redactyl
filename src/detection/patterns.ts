@@ -143,6 +143,54 @@ export const BUILTIN_PATTERNS: DetectorPattern[] = [
   },
 ];
 
+// Explicitly-labelled fields, keyed off the *author's* label rather than the
+// value's shape. ADDRESS is the one Category with no value-shape regex (street
+// formats are too varied to match precisely), so a single-occurrence address
+// the model misses leaks with nothing to catch it. But where the document spells
+// out the label — "- Residential address: <value>" — we can tag the value with
+// near-zero false-positive risk and let propagation spread it to any prose
+// occurrence. Extensible: add { labels, category } rows for other labelled PII.
+interface LabelledField {
+  // Label words preceding the colon, as a regex alternation fragment.
+  labels: string;
+  category: Category;
+  // High enough to beat the model's ADDRESS span (50–70) and collapse with it,
+  // but below validated identifiers — an explicit label is strong evidence.
+  confidence: number;
+}
+
+const LABELLED_FIELDS: LabelledField[] = [
+  { labels: 'Residential|Postal|Home|Street', category: 'ADDRESS', confidence: 90 },
+];
+
+// Match a labelled line and capture the value after the colon. Allows an
+// optional list-marker ("- "/"* ") and surrounding whitespace; the value is the
+// rest of the line, trimmed. Case-insensitive on the label; the `d` flag yields
+// the capture group's absolute offsets so the span anchors exactly.
+function labelRegex(field: LabelledField): RegExp {
+  return new RegExp(
+    `^[ \\t]*[-*]?[ \\t]*(?:${field.labels})[ \\t]+address[ \\t]*:[ \\t]*(\\S.*?)[ \\t]*$`,
+    'gimd',
+  );
+}
+
+export function labelledFieldSpans(text: string): ScoredSpan[] {
+  const scored: ScoredSpan[] = [];
+  for (const field of LABELLED_FIELDS) {
+    const re = labelRegex(field);
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+      const indices = match.indices?.[1];
+      if (!indices) continue;
+      const [start, end] = indices;
+      const value = text.slice(start, end);
+      if (!value) continue;
+      scored.push({ start, end, category: field.category, value, confidence: field.confidence });
+    }
+  }
+  return scored;
+}
+
 // Built-in + custom patterns as scored (un-merged) spans. Exposed so the worker
 // can fold these into one merge alongside the NER layer's spans. No worker, no
 // DOM — safe to import from tests.
