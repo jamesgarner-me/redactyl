@@ -10,6 +10,10 @@ import { FileDropZone } from './ui/FileDropZone';
 import { Analyzing } from './ui/Analyzing';
 import { ReviewScreen } from './ui/ReviewScreen';
 import { Receipt } from './ui/Receipt';
+import { SettingsSheet } from './ui/SettingsSheet';
+import { useTheme } from './ui/useTheme';
+import { isDemoEnabled } from './demo/flag';
+import { sampleReview } from './demo/sampleDocument';
 
 type Screen =
   | { name: 'dropzone'; error?: string }
@@ -32,6 +36,8 @@ function redactedName(filename: string): string {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'dropzone' });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [theme, toggleTheme] = useTheme();
   const detectorRef = useRef<Detector | null>(null);
   const runIdRef = useRef(0);
 
@@ -77,10 +83,34 @@ export default function App() {
     setScreen({ name: 'receipt', outputName: redactedName(filename), blob, mapping });
   }
 
+  // Demo mode (?demo): replay the e2e flow from an embedded fixture so the UI
+  // can be reviewed without a real file. Mirrors handleFile's analyzing beat.
+  function loadSample() {
+    const sample = sampleReview();
+    setScreen({ name: 'analyzing', filename: sample.filename });
+    setTimeout(() => {
+      setScreen({
+        name: 'review',
+        id: ++runIdRef.current,
+        filename: sample.filename,
+        text: sample.text,
+        items: sample.items,
+      });
+    }, 600);
+  }
+
   return (
     <div className="app">
-      <TopBar />
+      <TopBar
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+      <p className="small-screen-advisory" role="note">
+        Redactyl works best on desktop — 770 MB one-time download and heavy in-browser processing.
+      </p>
       <main className="surface">{renderScreen()}</main>
+      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 
@@ -88,11 +118,18 @@ export default function App() {
     switch (screen.name) {
       case 'dropzone':
         return (
-          <FileDropZone
-            onFile={handleFile}
-            onReject={(error) => setScreen({ name: 'dropzone', error })}
-            error={screen.error}
-          />
+          <>
+            <FileDropZone
+              onFile={handleFile}
+              onReject={(error) => setScreen({ name: 'dropzone', error })}
+              error={screen.error}
+            />
+            {isDemoEnabled() && (
+              <button type="button" className="demo-button" onClick={loadSample}>
+                ▶ Load sample document (demo)
+              </button>
+            )}
+          </>
         );
       case 'analyzing':
         return <Analyzing filename={screen.filename} label="Analyzing…" />;

@@ -1,5 +1,39 @@
-/* Minimal structural styling only — the full theme system (semantic tokens,
-   dark default, View Transition toggle) lands in slice 5. */
+/* Semantic-token theme system. Dark is the default (applied to :root and via
+   the inline script in index.html before first paint); [data-theme='light']
+   mirrors the navy-anchored ramp. #f17300 is a true accent in both themes. */
+:root,
+:root[data-theme='dark'] {
+  --bg: #06223f;
+  --surface: #054a91;
+  --surface-2: #0a3a70;
+  --border: #3e7cb1;
+  --text-dim: #81a4cd;
+  --text: #dbe4ee;
+  --accent: #f17300;
+  --danger: #e5484d;
+  --success: #3fb950;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #f4f7fb;
+  --surface: #ffffff;
+  --surface-2: #dbe4ee;
+  --border: #81a4cd;
+  --text-dim: #3e7cb1;
+  --text: #054a91;
+  --accent: #f17300;
+  --danger: #cf2d35;
+  --success: #2f9e44;
+  color-scheme: light;
+}
+
+:root {
+  /* Sans for chrome/prose; mono for all data (values, tokens, masked secrets,
+     last-4, filenames). Both prefer the named face if installed, else system. */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
 
 * {
   box-sizing: border-box;
@@ -7,9 +41,55 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
-  color: #1a2533;
-  background: #f4f7fb;
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Visible accent focus ring on every interactive element. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* View Transition theme reveal: an expanding clip-path circle from the toggle's
+   coordinates. JS skips this under prefers-reduced-motion / no startViewTransition. */
+/* Registered so it interpolates; animating the radius drives the mask below. */
+@property --reveal-r {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+::view-transition-old(root) {
+  animation: none;
+}
+
+/* The new theme washes in behind a soft, gradient leading edge: a radial mask
+   whose radius (--reveal-r) animates outward, with the outer ~96px feathered
+   from opaque to transparent. `forwards` holds the fully-open final frame until
+   the transition tears down — without it the mask snaps back to radius 0 for a
+   frame, which read as a flash. */
+::view-transition-new(root) {
+  animation: reveal 0.45s ease-out forwards;
+  mask: radial-gradient(
+    circle var(--reveal-r) at var(--tx, 50%) var(--ty, 50%),
+    #000 calc(100% - 96px),
+    transparent 100%
+  );
+  mask-repeat: no-repeat;
+}
+
+@keyframes reveal {
+  from {
+    --reveal-r: 0px;
+  }
+  to {
+    /* Pad past the farthest corner so the opaque core (radius − feather) still
+       covers it at the end — otherwise the corner sits in the feather and bleeds. */
+    --reveal-r: calc(var(--r, 2000px) + 140px);
+  }
 }
 
 .app {
@@ -18,12 +98,20 @@ body {
   flex-direction: column;
 }
 
+/* Top bar */
 .topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-brand {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
-  padding: 0.9rem 1.25rem;
-  border-bottom: 1px solid #d4dde8;
 }
 
 .wordmark {
@@ -33,7 +121,58 @@ body {
 
 .tagline {
   font-size: 0.85rem;
-  color: #5a6b80;
+  color: var(--text-dim);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.model-chip {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--success);
+}
+
+.icon-button {
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--surface-2);
+}
+
+/* Small-screen advisory (non-blocking) */
+.small-screen-advisory {
+  display: none;
+  margin: 0;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .small-screen-advisory {
+    display: block;
+  }
 }
 
 .surface {
@@ -46,15 +185,15 @@ body {
 
 /* Dropzone */
 .dropzone {
-  border: 2px dashed #aebfd4;
+  border: 2px dashed var(--border);
   border-radius: 12px;
   padding: 3rem 2rem;
   text-align: center;
 }
 
 .dropzone.drag-over {
-  border-color: #f17300;
-  background: #fff7ef;
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
 
 .dropzone-headline {
@@ -64,16 +203,17 @@ body {
 }
 
 .dropzone-or {
-  color: #5a6b80;
+  color: var(--text-dim);
   margin: 0.5rem 0;
 }
 
 .choose-file {
   font: inherit;
   padding: 0.5rem 1rem;
-  border: 1px solid #aebfd4;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
 }
 
@@ -83,17 +223,30 @@ body {
 
 .chip {
   display: inline-block;
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   padding: 0.15rem 0.5rem;
   margin: 0 0.2rem;
   border-radius: 6px;
-  background: #e4ecf5;
+  background: var(--surface-2);
 }
 
 .dropzone-error {
   margin-top: 1.25rem;
-  color: #cf2d35;
+  color: var(--danger);
+}
+
+.demo-button {
+  display: block;
+  margin: 1.25rem auto 0;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
 }
 
 /* Interim screens */
@@ -103,12 +256,12 @@ body {
 }
 
 .interim-file {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   margin: 1rem 0 0.25rem;
 }
 
 .interim-label {
-  color: #5a6b80;
+  color: var(--text-dim);
   margin: 0;
 }
 
@@ -116,8 +269,8 @@ body {
   width: 36px;
   height: 36px;
   margin: 0 auto;
-  border: 3px solid #d4dde8;
-  border-top-color: #f17300;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -125,6 +278,12 @@ body {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
   }
 }
 
@@ -143,21 +302,22 @@ body {
   font: inherit;
   font-size: 0.8rem;
   padding: 0.3rem 0.7rem;
-  border: 1px solid #aebfd4;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
 }
 
 .bucket-name {
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #3e7cb1;
+  color: var(--text-dim);
 }
 
 .bucket-count {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
-  color: #5a6b80;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
 }
 
 .bucket-chip.excluded {
@@ -170,9 +330,10 @@ body {
   list-style: none;
   margin: 0 0 1.5rem;
   padding: 0;
-  border: 1px solid #d4dde8;
+  border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
+  background: var(--surface);
 }
 
 .row {
@@ -180,7 +341,7 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 0.9rem;
-  border-bottom: 1px solid #e4ecf5;
+  border-bottom: 1px solid var(--border);
 }
 
 .row:last-child {
@@ -193,19 +354,20 @@ body {
 
 .row-check {
   cursor: pointer;
+  accent-color: var(--accent);
 }
 
 .row-category {
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #3e7cb1;
+  color: var(--text-dim);
   min-width: 90px;
 }
 
 .row-value {
   flex: 1;
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   word-break: break-all;
 }
 
@@ -215,7 +377,7 @@ body {
   line-height: 1;
   border: none;
   background: none;
-  color: #5a6b80;
+  color: var(--text-dim);
   cursor: pointer;
 }
 
@@ -224,15 +386,15 @@ body {
 }
 
 .row-count {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
-  color: #5a6b80;
+  color: var(--text-dim);
 }
 
 .row-locator {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
-  color: #8a98ab;
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
@@ -265,10 +427,14 @@ body {
   font-size: 0.9rem;
 }
 
+.advanced-option input {
+  accent-color: var(--accent);
+}
+
 .advanced-warning {
   display: block;
   font-size: 0.8rem;
-  color: #cf2d35;
+  color: var(--danger);
   margin-top: 0.15rem;
 }
 
@@ -282,7 +448,7 @@ body {
 
 .counts {
   font-size: 0.9rem;
-  color: #5a6b80;
+  color: var(--text-dim);
 }
 
 .redact {
@@ -291,7 +457,7 @@ body {
   padding: 0.6rem 1.4rem;
   border: none;
   border-radius: 8px;
-  background: #f17300;
+  background: var(--accent);
   color: #fff;
   cursor: pointer;
 }
@@ -314,7 +480,7 @@ body {
 }
 
 .empty-caveat {
-  color: #5a6b80;
+  color: var(--text-dim);
 }
 
 .output-card {
@@ -325,12 +491,13 @@ body {
   max-width: 420px;
   margin: 1.5rem auto;
   padding: 0.9rem 1.1rem;
-  border: 1px solid #d4dde8;
+  border: 1px solid var(--border);
   border-radius: 10px;
+  background: var(--surface);
 }
 
 .output-name {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 
 .mapping-card {
@@ -345,7 +512,7 @@ body {
 
 .mapping-warning {
   font-size: 0.8rem;
-  color: #cf2d35;
+  color: var(--danger);
 }
 
 .save {
@@ -353,7 +520,7 @@ body {
   padding: 0.45rem 1rem;
   border: none;
   border-radius: 8px;
-  background: #f17300;
+  background: var(--accent);
   color: #fff;
   cursor: pointer;
 }
@@ -362,7 +529,78 @@ body {
   font: inherit;
   background: none;
   border: none;
-  color: #3e7cb1;
+  color: var(--accent);
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Settings sheet */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  z-index: 10;
+}
+
+.sheet {
+  width: min(360px, 90vw);
+  height: 100%;
+  padding: 1.25rem;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sheet-head h2 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.sheet-section {
+  margin-top: 1.5rem;
+}
+
+.sheet-section h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.25rem;
+}
+
+.sheet-hint {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin: 0 0 0.75rem;
+}
+
+.sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ghost-button {
+  font: inherit;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ghost-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.receipt-title {
+  font-size: 1.2rem;
 }
