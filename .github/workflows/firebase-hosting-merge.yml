@@ -1,0 +1,30 @@
+# Issue 14: build + deploy to the live channel on every push to main.
+# Mirrors the manual `pnpm build && firebase deploy` from issue 13, so a merge
+# updates redactyl.jamesgarner.me with no local deploy. The COOP/COEP headers
+# that make the threaded WASM path work ship in firebase.json, not here.
+name: Deploy to Firebase Hosting on merge
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # pnpm before setup-node so the node cache can key off the pnpm store.
+      # Version comes from package.json "packageManager", so it stays in sync.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_REDACTYL }}
+          channelId: live
+          projectId: redactyl

@@ -30,3 +30,28 @@ The site must serve the Vite build with the same cross-origin-isolation headers 
 ## Blocked by
 
 None — can start immediately.
+
+## Comments
+
+**Code artefacts committed** (the parts that don't need a human at a keyboard):
+
+- `firebase.json` — `public: dist`, SPA rewrite `** → /index.html`, and the
+  header set from this issue: COOP `same-origin` + COEP `credentialless` on
+  `**`, `/index.html` → `no-cache`, `/assets/**` → `immutable` 1-year cache.
+  Verified `pnpm build` emits exactly `dist/index.html` + `dist/assets/**`, so
+  the globs match the real output.
+- `.firebaserc` — `default` project alias set to **`redactyl`** (placeholder).
+  ⚠️ Change this to the real Firebase project ID if it differs; the two CI
+  workflows (issue 14) hardcode the same `projectId` and must match.
+
+**Remaining human steps (this issue stays `ready-for-human` until done):**
+
+1. Create the Firebase project (Spark/free tier per ADR 0001) and confirm the
+   project ID matches `.firebaserc` + the workflows.
+2. `pnpm build && firebase deploy --only hosting` from a local machine once
+   (proves the config before CI takes over).
+3. Add `redactyl.jamesgarner.me` as a custom domain on the site; add the A
+   records at GoDaddy; wait for managed SSL.
+4. Smoke test on the live URL: DevTools → Application → Frame →
+   **Cross-Origin Isolated: yes**, then complete a model download → text
+   redaction end-to-end to confirm the threaded WASM path works in production.
