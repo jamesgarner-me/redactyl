@@ -8,7 +8,7 @@ Status: ready-for-human
 
 ## What to build
 
-Stand up production hosting on Firebase at `redactyl.jamesgarner.me` and prove cross-origin isolation works in the wild. HITL because creating the Firebase project, editing DNS at the GoDaddy registrar, and waiting on managed SSL provisioning all need a human at a keyboard.
+Stand up production hosting on Firebase at `redactyl.jamesgarner.me` and prove cross-origin isolation works in the wild. HITL because creating the Firebase project, editing DNS in AWS Route 53 (the nameservers for `jamesgarner.me` are `awsdns-*`; GoDaddy is only the registrar), and waiting on managed SSL provisioning all need a human at a keyboard.
 
 The site must serve the Vite build with the same cross-origin-isolation headers the local dev server uses (mirroring `vite.config.ts`), or the threaded ONNX WASM path won't initialise and the NER layer will fail silently:
 
@@ -23,7 +23,7 @@ The site must serve the Vite build with the same cross-origin-isolation headers 
 
 - [ ] Firebase project created and `firebase.json` committed with COOP/COEP headers and the cache-control rules above
 - [ ] Manual `pnpm build && firebase deploy --only hosting` succeeds from a local machine
-- [ ] `redactyl.jamesgarner.me` is configured as a custom domain on the Firebase site; A records added at GoDaddy; managed SSL provisioned
+- [ ] `redactyl.jamesgarner.me` is configured as a custom domain on the Firebase site; A records added in Route 53; managed SSL provisioned
 - [ ] Loading `https://redactyl.jamesgarner.me/` shows DevTools → Application → Frame → **Cross-Origin Isolated: yes**
 - [ ] The model gate loads on the live URL and the user can complete a model download → text redaction end-to-end against the deployed site (smoke test that the threaded WASM path actually works in production, not just that headers are present)
 
@@ -51,7 +51,9 @@ None — can start immediately.
 2. `pnpm build && firebase deploy --only hosting` from a local machine once
    (proves the config before CI takes over).
 3. Add `redactyl.jamesgarner.me` as a custom domain on the site; add the A
-   records at GoDaddy; wait for managed SSL.
+   records (and any TXT verification record) in the AWS Route 53 hosted zone for
+   `jamesgarner.me` — not GoDaddy, which is only the registrar; the zone's
+   nameservers are `awsdns-*`. Wait for managed SSL.
 4. Smoke test on the live URL: DevTools → Application → Frame →
    **Cross-Origin Isolated: yes**, then complete a model download → text
    redaction end-to-end to confirm the threaded WASM path works in production.
