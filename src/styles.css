@@ -252,6 +252,26 @@ body {
   border: none;
 }
 
+/* Advanced footer */
+.advanced-footer {
+  margin: 0 0 1.25rem;
+}
+
+.advanced-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.advanced-warning {
+  display: block;
+  font-size: 0.8rem;
+  color: #cf2d35;
+  margin-top: 0.15rem;
+}
+
 /* Redact bar */
 .redact-bar {
   display: flex;
@@ -311,6 +331,21 @@ body {
 
 .output-name {
   font-family: ui-monospace, "JetBrains Mono", monospace;
+}
+
+.mapping-card {
+  text-align: left;
+}
+
+.mapping-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mapping-warning {
+  font-size: 0.8rem;
+  color: #cf2d35;
 }
 
 .save {

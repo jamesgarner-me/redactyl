@@ -1,6 +1,6 @@
 # Mapping export + Advanced footer
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 

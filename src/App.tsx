@@ -4,6 +4,7 @@ import { groupItems } from './domain/items';
 import type { Item, Span } from './domain/types';
 import { assignTokens } from './redaction/tokeniser';
 import { redact } from './redaction/textRedactor';
+import { buildMapping, mappingName } from './redaction/mappingExporter';
 import { TopBar } from './ui/TopBar';
 import { FileDropZone } from './ui/FileDropZone';
 import { Analyzing } from './ui/Analyzing';
@@ -15,7 +16,12 @@ type Screen =
   | { name: 'analyzing'; filename: string }
   | { name: 'review'; id: number; filename: string; text: string; items: Item[] }
   | { name: 'redacting'; filename: string }
-  | { name: 'receipt'; outputName: string; blob: Blob };
+  | {
+      name: 'receipt';
+      outputName: string;
+      blob: Blob;
+      mapping?: { name: string; blob: Blob };
+    };
 
 // `notes.txt` -> `notes.redacted.txt`; `notes.md` -> `notes.redacted.md`.
 function redactedName(filename: string): string {
@@ -51,7 +57,7 @@ export default function App() {
     });
   }
 
-  async function handleRedact(acceptedSpans: Span[]) {
+  async function handleRedact(acceptedSpans: Span[], saveMapping: boolean) {
     if (screen.name !== 'review') return;
     const { filename, text } = screen;
     setScreen({ name: 'redacting', filename });
@@ -60,7 +66,15 @@ export default function App() {
     const tokens = assignTokens(acceptedSpans);
     const output = redact(text, acceptedSpans, tokens);
     const blob = new Blob([output], { type: 'text/plain' });
-    setScreen({ name: 'receipt', outputName: redactedName(filename), blob });
+    const mapping = saveMapping
+      ? {
+          name: mappingName(filename),
+          blob: new Blob([JSON.stringify(buildMapping(tokens.entries, filename), null, 2)], {
+            type: 'application/json',
+          }),
+        }
+      : undefined;
+    setScreen({ name: 'receipt', outputName: redactedName(filename), blob, mapping });
   }
 
   return (
@@ -89,6 +103,7 @@ export default function App() {
           <Receipt
             outputName={screen.outputName}
             blob={screen.blob}
+            mapping={screen.mapping}
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />
         );

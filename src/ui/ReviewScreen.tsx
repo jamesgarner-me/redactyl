@@ -11,7 +11,7 @@ interface Props {
   filename: string;
   text: string;
   items: Item[];
-  onRedact: (acceptedSpans: Span[]) => void;
+  onRedact: (acceptedSpans: Span[], saveMapping: boolean) => void;
   onRedactAnother: () => void;
 }
 
@@ -29,6 +29,8 @@ export function ReviewScreen({ filename, text, items, onRedact, onRedactAnother 
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [showDismissed, setShowDismissed] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [saveMapping, setSaveMapping] = useState(false);
 
   // Precompute each Item's key, Bucket, mask flag and line locators once.
   const views = useMemo(() => {
@@ -140,11 +142,36 @@ export function ReviewScreen({ filename, text, items, onRedact, onRedactAnother 
           )}
         </div>
       )}
+      <div className="advanced-footer">
+        <button
+          type="button"
+          className="link-button"
+          aria-expanded={showAdvanced}
+          onClick={() => setShowAdvanced((s) => !s)}
+        >
+          {showAdvanced ? '▾' : '▸'} Advanced
+        </button>
+        {showAdvanced && (
+          <label className="advanced-option">
+            <input
+              type="checkbox"
+              checked={saveMapping}
+              onChange={() => setSaveMapping((s) => !s)}
+            />
+            <span>
+              Also save a re-identification mapping
+              <span className="advanced-warning">
+                Anyone with this file can reverse the redaction.
+              </span>
+            </span>
+          </label>
+        )}
+      </div>
       <RedactButton
         itemCount={accepted.length}
         occurrenceCount={occurrenceCount}
         disabled={accepted.length === 0}
-        onClick={() => onRedact(accepted.flatMap((v) => v.item.spans))}
+        onClick={() => onRedact(accepted.flatMap((v) => v.item.spans), saveMapping)}
       />
     </div>
   );
