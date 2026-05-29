@@ -34,7 +34,7 @@ export function ProcessExplainer() {
           “Privacy Filter is a redaction and data minimization aid, not an anonymization,
           compliance, or a safety guarantee.”
           <span className="model-disclaimer-attr">
-            OpenAI Privacy Filter model card{' '}
+            -- OpenAI Privacy Filter model card{' '}
             <a href={MODEL_CARD_URL} target="_blank" rel="noopener noreferrer">
               (link)
             </a>
