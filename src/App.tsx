@@ -1,20 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { createDetector, type Detector } from './detection/detector';
-import { groupItems, itemKey } from './domain/items';
-import type { Item } from './domain/types';
+import { groupItems } from './domain/items';
+import type { Item, Span } from './domain/types';
 import { assignTokens } from './redaction/tokeniser';
 import { redact } from './redaction/textRedactor';
 import { TopBar } from './ui/TopBar';
 import { FileDropZone } from './ui/FileDropZone';
 import { Analyzing } from './ui/Analyzing';
-import { EntityReviewList } from './ui/EntityReviewList';
-import { RedactButton } from './ui/RedactButton';
+import { ReviewScreen } from './ui/ReviewScreen';
 import { Receipt } from './ui/Receipt';
 
 type Screen =
   | { name: 'dropzone'; error?: string }
   | { name: 'analyzing'; filename: string }
-  | { name: 'review'; filename: string; text: string; items: Item[] }
+  | { name: 'review'; id: number; filename: string; text: string; items: Item[] }
   | { name: 'redacting'; filename: string }
   | { name: 'receipt'; outputName: string; blob: Blob };
 
@@ -27,8 +26,8 @@ function redactedName(filename: string): string {
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'dropzone' });
-  const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const detectorRef = useRef<Detector | null>(null);
+  const runIdRef = useRef(0);
 
   useEffect(() => {
     const detector = createDetector();
@@ -43,32 +42,25 @@ export default function App() {
     setScreen({ name: 'analyzing', filename: file.name });
     const text = await file.text();
     const spans = await detectorRef.current!.detect(text);
-    setExcluded(new Set());
-    setScreen({ name: 'review', filename: file.name, text, items: groupItems(spans) });
+    setScreen({
+      name: 'review',
+      id: ++runIdRef.current,
+      filename: file.name,
+      text,
+      items: groupItems(spans),
+    });
   }
 
-  async function handleRedact() {
+  async function handleRedact(acceptedSpans: Span[]) {
     if (screen.name !== 'review') return;
-    const { filename, text, items } = screen;
+    const { filename, text } = screen;
     setScreen({ name: 'redacting', filename });
     // Let the redacting screen paint before the (synchronous) rewrite.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const acceptedSpans = items
-      .filter((item) => !excluded.has(itemKey(item.category, item.value)))
-      .flatMap((item) => item.spans);
     const tokens = assignTokens(acceptedSpans);
     const output = redact(text, acceptedSpans, tokens);
     const blob = new Blob([output], { type: 'text/plain' });
     setScreen({ name: 'receipt', outputName: redactedName(filename), blob });
-  }
-
-  function toggle(key: string) {
-    setExcluded((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
   }
 
   return (
@@ -101,43 +93,16 @@ export default function App() {
           />
         );
       case 'review':
-        return renderReview(screen);
+        return (
+          <ReviewScreen
+            key={screen.id}
+            filename={screen.filename}
+            text={screen.text}
+            items={screen.items}
+            onRedact={handleRedact}
+            onRedactAnother={() => setScreen({ name: 'dropzone' })}
+          />
+        );
     }
-  }
-
-  function renderReview(screen: Extract<Screen, { name: 'review' }>) {
-    const { filename, items } = screen;
-
-    if (items.length === 0) {
-      return (
-        <div className="empty-state">
-          <p className="empty-headline">✓ No personal data detected in {filename}</p>
-          <p className="empty-caveat">
-            Detection isn't perfect — eyeball your file before pasting. No output file is produced.
-          </p>
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => setScreen({ name: 'dropzone' })}
-          >
-            Redact another file
-          </button>
-        </div>
-      );
-    }
-
-    const accepted = items.filter((item) => !excluded.has(itemKey(item.category, item.value)));
-    const occurrenceCount = accepted.reduce((sum, item) => sum + item.spans.length, 0);
-
-    return (
-      <div className="review">
-        <EntityReviewList items={items} excluded={excluded} onToggle={toggle} />
-        <RedactButton
-          itemCount={accepted.length}
-          occurrenceCount={occurrenceCount}
-          onClick={handleRedact}
-        />
-      </div>
-    );
   }
 }

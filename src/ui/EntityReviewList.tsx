@@ -1,29 +1,63 @@
-import { itemKey } from '../domain/items';
-import type { Item } from '../domain/types';
+import type { Category } from '../domain/types';
 
-interface Props {
-  items: Item[];
-  excluded: Set<string>;
-  onToggle: (key: string) => void;
+export interface ReviewRow {
+  key: string;
+  category: Category;
+  // Already masked-or-clear for display; `maskable` says whether the eye shows.
+  display: string;
+  maskable: boolean;
+  revealed: boolean;
+  occurrences: number;
+  locator: string;
+  excluded: boolean;
 }
 
-export function EntityReviewList({ items, excluded, onToggle }: Props) {
+interface Props {
+  rows: ReviewRow[];
+  onToggle: (key: string) => void;
+  onReveal: (key: string) => void;
+  onDismiss: (key: string) => void;
+}
+
+// Granular rows: `☑ · CATEGORY · value · N× · locator · ×`. Unchecking is
+// Exclude (row greyed, stays); the trailing `×` is Dismiss (row leaves).
+export function EntityReviewList({ rows, onToggle, onReveal, onDismiss }: Props) {
   return (
     <ul className="review-list">
-      {items.map((item) => {
-        const key = itemKey(item.category, item.value);
-        const checked = !excluded.has(key);
-        return (
-          <li key={key} className={checked ? 'row' : 'row excluded'}>
-            <label className="row-label">
-              <input type="checkbox" checked={checked} onChange={() => onToggle(key)} />
-              <span className="row-category">{item.category}</span>
-              <span className="row-value">{item.value}</span>
-              <span className="row-count">{item.spans.length}×</span>
-            </label>
-          </li>
-        );
-      })}
+      {rows.map((row) => (
+        <li key={row.key} className={row.excluded ? 'row excluded' : 'row'}>
+          <input
+            type="checkbox"
+            className="row-check"
+            checked={!row.excluded}
+            aria-label={`Redact ${row.category} ${row.display}`}
+            onChange={() => onToggle(row.key)}
+          />
+          <span className="row-category">{row.category}</span>
+          <span className="row-value">{row.display}</span>
+          {row.maskable && (
+            <button
+              type="button"
+              className="row-eye"
+              aria-label={row.revealed ? 'Hide value' : 'Reveal value'}
+              aria-pressed={row.revealed}
+              onClick={() => onReveal(row.key)}
+            >
+              {row.revealed ? '🙈' : '👁'}
+            </button>
+          )}
+          <span className="row-count">{row.occurrences}×</span>
+          <span className="row-locator">{row.locator}</span>
+          <button
+            type="button"
+            className="row-dismiss"
+            aria-label={`Dismiss — not personal data: ${row.category} ${row.display}`}
+            onClick={() => onDismiss(row.key)}
+          >
+            ×
+          </button>
+        </li>
+      ))}
     </ul>
   );
 }

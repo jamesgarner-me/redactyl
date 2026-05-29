@@ -1,6 +1,6 @@
 # Review screen UX — buckets, Exclude/Dismiss, masking, locators
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 
