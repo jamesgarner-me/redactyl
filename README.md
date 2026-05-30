@@ -267,4 +267,24 @@ pnpm test       # full suite incl. the offline + PDF-corpus regression checks
 > `pnpm build && pnpm preview`.
 
 Stack: Vite · React · TypeScript · transformers.js (ONNX) · pdfjs · pdf-lib ·
-vite-plugin-pwa. Hosted on Firebase Hosting; CI deploys on push to `main`.
+vite-plugin-pwa. Hosted on Vercel. (The Firebase Hosting workflows under
+`.github/workflows/` are kept but disabled — see [ADR 0001](./docs/adr/0001-browser-only-delivery-via-firebase-and-hf-cdn.md).)
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome. Because the whole point of Redactyl is a
+verifiable fail-closed guarantee, changes that touch detection, the redaction
+pipeline, or the verification pass should come with tests — `pnpm test` runs the
+offline and PDF-corpus regression checks that protect that guarantee.
+
+## Security
+
+Found a way to defeat the redaction or leak a document? Please report it
+privately — see [SECURITY.md](./SECURITY.md). Don't open a public issue for
+vulnerabilities.
+
+## License
+
+[MIT](./LICENSE) © James Garner.
