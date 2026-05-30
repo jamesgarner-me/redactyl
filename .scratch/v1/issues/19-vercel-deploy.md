@@ -1,6 +1,6 @@
 # Vercel deployment (redactyl-app.vercel.app)
 
-Status: ready-for-human
+Status: ready-for-human (agent deliverables done; HITL steps remaining)
 
 ## Parent
 
@@ -41,8 +41,8 @@ The COOP/COEP constraints from ADR 0001 are unchanged. Vercel supports `Cross-Or
 
 ## Acceptance criteria
 
-- [ ] `vercel.json` committed with SPA rewrite, COOP/COEP headers, and cache-control rules matching `firebase.json`
-- [ ] Both Firebase CI workflow files changed to `on: workflow_dispatch` only (no longer auto-fire)
+- [x] `vercel.json` committed with SPA rewrite, COOP/COEP headers, and cache-control rules matching `firebase.json`
+- [x] Both Firebase CI workflow files changed to `on: workflow_dispatch` only (no longer auto-fire)
 - [ ] Vercel project connected to the repo; `redactyl-app.vercel.app` resolves to the app
 - [ ] `https://redactyl-app.vercel.app/` shows `crossOriginIsolated === true` in DevTools
 - [ ] Model download → text redaction end-to-end passes on the live Vercel URL

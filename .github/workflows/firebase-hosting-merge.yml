@@ -4,11 +4,9 @@
 # that make the threaded WASM path work ship in firebase.json, not here.
 name: Deploy to Firebase Hosting on merge
 
+# Disabled: Vercel (issue 19) replaced Firebase CI. Restore push/pull_request
+# triggers here to switch back to Firebase hosting.
 on:
-  push:
-    branches: [main]
-  # Manual re-deploy of current main without a code change (e.g. to retry a
-  # transient deploy failure or re-publish after a Firebase-side change).
   workflow_dispatch:
 
 jobs:

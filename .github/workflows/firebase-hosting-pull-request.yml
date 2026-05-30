@@ -3,7 +3,10 @@
 # account secret (the deploy step would fail with no secret available).
 name: Deploy to Firebase Hosting on PR
 
-on: pull_request
+# Disabled: Vercel (issue 19) replaced Firebase CI. Restore pull_request trigger
+# here to switch back to Firebase hosting.
+on:
+  workflow_dispatch:
 
 permissions:
   checks: write
