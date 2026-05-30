@@ -14,7 +14,17 @@
 // subset) won't match the literal value; `PdfVerifier` catches that and the
 // caller fails closed (the rasterise fallback is slice 10).
 
-import { PDFDocument, PDFName, PDFArray, PDFRef, decodePDFRawStream, rgb } from 'pdf-lib';
+import {
+  PDFDocument,
+  PDFDict,
+  PDFName,
+  PDFArray,
+  PDFRef,
+  PDFRawStream,
+  decodePDFRawStream,
+  rgb,
+  type PDFPage,
+} from 'pdf-lib';
 import type { Span } from '../domain/types';
 import type { GlyphBox } from './pdfExtractor';
 
@@ -34,27 +44,68 @@ export async function redactPdf(
   return doc.save();
 }
 
-// Rewrite every page's content stream(s), blanking accepted values in place.
+// Rewrite every content stream that can show text, blanking accepted values in
+// place. Text often lives in Form XObjects (the page paints them with `Do`), so
+// we follow Resources/XObject transitively rather than only the page Contents —
+// otherwise XObject-wrapped PDFs (common from browser/HTML-to-PDF exports) leak.
 function blankContentStreams(doc: PDFDocument, values: string[]): void {
   if (values.length === 0) return;
   const ctx = doc.context;
-  for (const page of doc.getPages()) {
-    const contents = page.node.get(PDFName.of('Contents'));
-    const refs: PDFRef[] =
-      contents instanceof PDFArray
-        ? (contents.asArray().filter((r) => r instanceof PDFRef) as PDFRef[])
-        : contents instanceof PDFRef
-          ? [contents]
-          : [];
-    for (const ref of refs) {
-      const stream = ctx.lookup(ref);
-      if (!stream || !('dict' in stream)) continue;
-      const decoded = latin1.decode(decodePDFRawStream(stream as never).decode());
-      const { text, changed } = blankOperands(decoded, values);
-      if (changed) {
-        ctx.assign(ref, ctx.flateStream(toLatin1Bytes(text)));
-      }
-    }
+  const refs = new Set<PDFRef>();
+  for (const page of doc.getPages()) collectContentRefs(ctx, page, refs);
+
+  for (const ref of refs) {
+    const stream = ctx.lookup(ref);
+    if (!(stream instanceof PDFRawStream)) continue;
+    const decoded = latin1.decode(decodePDFRawStream(stream).decode());
+    const { text, changed } = blankOperands(decoded, values);
+    if (!changed) continue;
+    // Preserve the stream's own dictionary — a Form XObject's /Subtype, /BBox,
+    // /Resources and /Matrix must survive — and only swap in the blanked bytes,
+    // stored uncompressed (drop /Filter, refresh /Length).
+    const bytes = toLatin1Bytes(text);
+    const dict = stream.dict;
+    dict.delete(PDFName.of('Filter'));
+    dict.delete(PDFName.of('DecodeParms'));
+    dict.set(PDFName.of('Length'), ctx.obj(bytes.length));
+    ctx.assign(ref, PDFRawStream.of(dict, bytes));
+  }
+}
+
+// Collect the refs of every content-bearing stream reachable from a page: its
+// Contents plus the Form XObjects in its (and their nested) Resources. The
+// `seen` set both dedupes shared XObjects and guards against reference cycles.
+function collectContentRefs(
+  ctx: PDFDocument['context'],
+  page: PDFPage,
+  seen: Set<PDFRef>,
+): void {
+  const contents = page.node.get(PDFName.of('Contents'));
+  if (contents instanceof PDFArray) {
+    for (const r of contents.asArray()) if (r instanceof PDFRef) seen.add(r);
+  } else if (contents instanceof PDFRef) {
+    seen.add(contents);
+  }
+  collectFormXObjects(ctx, page.node.get(PDFName.of('Resources')), seen);
+}
+
+function collectFormXObjects(
+  ctx: PDFDocument['context'],
+  resources: unknown,
+  seen: Set<PDFRef>,
+): void {
+  const res = resources instanceof PDFRef ? ctx.lookup(resources) : resources;
+  if (!(res instanceof PDFDict)) return;
+  const xobjects = res.get(PDFName.of('XObject'));
+  const xdict = xobjects instanceof PDFRef ? ctx.lookup(xobjects) : xobjects;
+  if (!(xdict instanceof PDFDict)) return;
+  for (const ref of xdict.values()) {
+    if (!(ref instanceof PDFRef) || seen.has(ref)) continue;
+    const xobj = ctx.lookup(ref);
+    if (!(xobj instanceof PDFRawStream)) continue;
+    if (xobj.dict.get(PDFName.of('Subtype')) !== PDFName.of('Form')) continue;
+    seen.add(ref);
+    collectFormXObjects(ctx, xobj.dict.get(PDFName.of('Resources')), seen);
   }
 }
 

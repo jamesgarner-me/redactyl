@@ -16,3 +16,16 @@ export async function buildPdf(pages: string[][]): Promise<Uint8Array> {
   }
   return doc.save();
 }
+
+// A PDF whose text lives inside a Form XObject (the page just paints it with
+// `Do`), mirroring browser/HTML-to-PDF exports. Built by embedding one PDF's
+// page into another, which pdf-lib represents as a Form XObject. Standard
+// WinAnsi encoding, so content-stream blanking still applies.
+export async function buildXObjectPdf(lines: string[]): Promise<Uint8Array> {
+  const innerBytes = await buildPdf([lines]);
+  const outer = await PDFDocument.create();
+  const [embedded] = await outer.embedPdf(innerBytes);
+  const page = outer.addPage([400, 300]);
+  page.drawPage(embedded);
+  return outer.save();
+}

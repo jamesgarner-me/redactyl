@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { extractPdf } from './pdfExtractor';
 import { redactPdf } from './pdfRedactor';
 import { verifyPdf } from './pdfVerifier';
-import { buildPdf } from './pdfTestUtils';
+import { buildPdf, buildXObjectPdf } from './pdfTestUtils';
 import { runDetectors } from '../detection/patterns';
 import { groupItems } from '../domain/items';
 
@@ -40,6 +40,26 @@ describe('redactPdf + verifyPdf (integration)', () => {
     const after = await extractPdf(redacted);
     expect(after.text).not.toContain('alice@example.com');
     expect(after.text).not.toContain('123-45-6789');
+  });
+
+  it('redacts text nested in a Form XObject (not just the page Contents)', async () => {
+    // Browser/HTML-to-PDF exports paint a Form XObject with `Do`; the redactor
+    // must follow into it or the value leaks through verification.
+    const bytes = await buildXObjectPdf(['Donor email alice@example.com on file']);
+    const { text, glyphs } = await extractPdf(bytes);
+    expect(text).toContain('alice@example.com');
+
+    const redacted = await redactPdf(bytes, detect(text), glyphs);
+
+    const items = groupItems(detect(text));
+    expect(await verifyPdf(redacted, items, detect)).toEqual({ ok: true, leaks: [] });
+
+    // The email is gone, but the XObject still renders — its surrounding text
+    // survives, proving we blanked the bytes rather than corrupting the stream.
+    const after = (await extractPdf(redacted)).text;
+    expect(after).not.toContain('alice@example.com');
+    expect(after).toContain('Donor email');
+    expect(after).toContain('on file');
   });
 
   it.skipIf(!hasPdftotext)('pdftotext on the output produces no accepted PII strings', async () => {
