@@ -941,3 +941,28 @@ body {
   line-height: 1.45;
   color: var(--text-dim);
 }
+
+/* Decorative pterodactyl mark — fixed bottom-right, behind all content
+   (z-index: -1 paints above the body background but below normal-flow boxes;
+   the sticky redact-bar at z:5 and the sheet at z:10 cover it). Sized to ~33%
+   of viewport width, floored/capped so it stays legible without ballooning. */
+.pterodactyl-mark {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: -1;
+  margin: 0;
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-mono);
+  font-size: clamp(6px, 0.69vw, 15px);
+  line-height: 1;
+  color: var(--text-dim);
+  opacity: 0.15;
+}
+
+@media (max-width: 640px) {
+  .pterodactyl-mark {
+    display: none;
+  }
+}

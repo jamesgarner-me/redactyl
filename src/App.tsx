@@ -22,6 +22,7 @@ import { ReviewScreen } from './ui/ReviewScreen';
 import { Receipt } from './ui/Receipt';
 import { SettingsSheet } from './ui/SettingsSheet';
 import { ModelGate } from './ui/ModelGate';
+import { PterodactylMark } from './ui/PterodactylMark';
 import { useTheme } from './ui/useTheme';
 import { useRegexDetection } from './ui/useRegexDetection';
 import { useModelGate } from './model/useModelGate';
@@ -240,6 +241,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <PterodactylMark />
       <TopBar
         theme={theme}
         onToggleTheme={toggleTheme}
