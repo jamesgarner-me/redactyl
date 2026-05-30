@@ -17,6 +17,7 @@ import { redactAndVerifyPdf } from './pdf/pdfRedactor';
 import { renderPageToPng } from './pdf/pdfRender';
 import { TopBar } from './ui/TopBar';
 import { FileDropZone } from './ui/FileDropZone';
+import { DropzoneIntro } from './ui/DropzoneIntro';
 import { Analyzing } from './ui/Analyzing';
 import { ReviewScreen } from './ui/ReviewScreen';
 import { Receipt } from './ui/Receipt';
@@ -295,6 +296,7 @@ export default function App() {
       case 'dropzone':
         return (
           <>
+            <DropzoneIntro />
             <FileDropZone
               onFile={handleFile}
               onReject={(error) => setScreen({ name: 'dropzone', error })}
