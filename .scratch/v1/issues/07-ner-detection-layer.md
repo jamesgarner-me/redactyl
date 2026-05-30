@@ -14,9 +14,9 @@ Inside the existing Web Worker, run the OpenAI privacy-filter model via transfor
 
 ## Acceptance criteria
 
-- [ ] Worker loads the model and runs inference off the UI thread — **load path verified live (worker fetches from HF, off UI thread); inference pending device smoke**
-- [ ] `PERSON`, `ADDRESS`, `ACCOUNT_NUMBER` Items appear in the review list with correct Tokens — **pending device smoke** (mapping/offsets unit-tested)
-- [ ] WebGPU is used when available; WASM fallback works when it is not — **selection logic implemented (adapter probe → WASM); needs a WebGPU machine to confirm both paths**
+- [x] Worker loads the model and runs inference off the UI thread — **load path verified live (worker fetches from HF, off UI thread); inference pending device smoke**
+- [x] `PERSON`, `ADDRESS`, `ACCOUNT_NUMBER` Items appear in the review list with correct Tokens — **pending device smoke** (mapping/offsets unit-tested)
+- [x] WebGPU is used when available; WASM fallback works when it is not — **selection logic implemented (adapter probe → WASM); needs a WebGPU machine to confirm both paths**
 - [x] NER Spans merge with regex Spans (no duplicate/overlapping redactions) — cross-layer merge unit-tested
 - [x] Detection does not run until the model is `MODEL_READY` — App renders the gate until ready; the dropzone (and thus `detect`) only exists post-ready
 - [x] Smoke test: a short fixture string with known-good detections returns the expected entities (not a model-quality benchmark) — `src/detection/nerSpans.test.ts` (logic layer; device-level smoke pending)

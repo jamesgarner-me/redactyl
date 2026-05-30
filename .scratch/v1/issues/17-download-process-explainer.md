@@ -31,16 +31,16 @@ Implementation note: extract the new UI into `src/ui/ProcessExplainer.tsx` so `M
 
 ## Acceptance criteria
 
-- [ ] Disclaimer blockquote appears on the `downloading` state, *outside* the `<details>` panel, and remains visible whether or not the panel is collapsed
-- [ ] Disclaimer quote text matches the wording above verbatim; the phrase is linked to the OpenAI Privacy Filter HuggingFace model card
-- [ ] `<details>` panel renders open on first display; the user can collapse it and the collapse state persists during the rest of the download
-- [ ] Pipeline diagram renders the seven stages in vertical order, with `Detect` showing `Regex` and `NER` as sub-nodes
-- [ ] The `NER` sub-node is visually distinguished using `--accent` **and** an accompanying text affordance ("downloading now") — the highlight does not rely on colour alone
-- [ ] The diagram region carries an `aria-label` that describes the flow in prose
-- [ ] All new copy honours `CONTEXT.md` vocabulary — uses **Detect** / **Item** / **Token** correctly; does not invent new terms
-- [ ] No new outbound runtime calls: the model-card link opens on click only (no prefetch, no analytics)
-- [ ] `probing`, `missing`, and `error` states are visually identical to before the change (regression check)
-- [ ] Unit / DOM test asserts (a) the disclaimer string is present in the rendered `downloading` state, (b) the disclaimer is *not* nested inside the `<details>` element, (c) the seven pipeline stages are present in order
+- [x] Disclaimer blockquote appears on the `downloading` state, *outside* the `<details>` panel, and remains visible whether or not the panel is collapsed
+- [x] Disclaimer quote text matches the wording above verbatim; the phrase is linked to the OpenAI Privacy Filter HuggingFace model card
+- [x] `<details>` panel renders open on first display; the user can collapse it and the collapse state persists during the rest of the download
+- [x] Pipeline diagram renders the seven stages in vertical order, with `Detect` showing `Regex` and `NER` as sub-nodes
+- [x] The `NER` sub-node is visually distinguished using `--accent` **and** an accompanying text affordance ("downloading now") — the highlight does not rely on colour alone
+- [x] The diagram region carries an `aria-label` that describes the flow in prose
+- [x] All new copy honours `CONTEXT.md` vocabulary — uses **Detect** / **Item** / **Token** correctly; does not invent new terms
+- [x] No new outbound runtime calls: the model-card link opens on click only (no prefetch, no analytics)
+- [x] `probing`, `missing`, and `error` states are visually identical to before the change (regression check)
+- [x] Unit / DOM test asserts (a) the disclaimer string is present in the rendered `downloading` state, (b) the disclaimer is *not* nested inside the `<details>` element, (c) the seven pipeline stages are present in order
 
 ## Blocked by
 

@@ -28,12 +28,12 @@ Mapping file shape:
 
 ## Acceptance criteria
 
-- [ ] The mapping checkbox lives in the collapsed Advanced footer and is off by default
-- [ ] When off, no mapping card and no mapping file
-- [ ] When on, the receipt shows a second save card and a manual save writes `<basename>.redactyl-mapping.json`
-- [ ] The mapping JSON matches the documented shape and contains **no** positions/offsets/bboxes
-- [ ] The mapping card repeats the reversal warning
-- [ ] Unit test asserts the mapping shape and the absence of positional fields
+- [x] The mapping checkbox lives in the collapsed Advanced footer and is off by default
+- [x] When off, no mapping card and no mapping file
+- [x] When on, the receipt shows a second save card and a manual save writes `<basename>.redactyl-mapping.json`
+- [x] The mapping JSON matches the documented shape and contains **no** positions/offsets/bboxes
+- [x] The mapping card repeats the reversal warning
+- [x] Unit test asserts the mapping shape and the absence of positional fields
 
 ## Blocked by
 

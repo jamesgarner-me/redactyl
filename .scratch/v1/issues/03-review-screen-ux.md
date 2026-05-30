@@ -14,14 +14,14 @@ Add a **summary strip** of Bucket chips with Occurrence counts, where `ID` = `SS
 
 ## Acceptance criteria
 
-- [ ] Summary strip shows one chip per Bucket with its Occurrence count; clicking bulk-toggles Exclude and is recoverable
-- [ ] Rows stay granular with real Categories and Tokens (never `<ID_…>`)
-- [ ] Exclude greys the row, keeps it, leaves the strip count unchanged, drops the "items to redact" headline by one
-- [ ] Dismiss removes the row, decrements its Bucket count, and is recoverable via "N dismissed · show"
-- [ ] `SECRET` and `ID`-Bucket values are masked with a hint and reveal via a per-row eye; other Categories shown in clear
-- [ ] Text locators show line numbers
-- [ ] Empty state renders with the caveat and produces no output file
-- [ ] Headline counts unique Items; the sub-count reads `N items · M occurrences`
+- [x] Summary strip shows one chip per Bucket with its Occurrence count; clicking bulk-toggles Exclude and is recoverable
+- [x] Rows stay granular with real Categories and Tokens (never `<ID_…>`)
+- [x] Exclude greys the row, keeps it, leaves the strip count unchanged, drops the "items to redact" headline by one
+- [x] Dismiss removes the row, decrements its Bucket count, and is recoverable via "N dismissed · show"
+- [x] `SECRET` and `ID`-Bucket values are masked with a hint and reveal via a per-row eye; other Categories shown in clear
+- [x] Text locators show line numbers
+- [x] Empty state renders with the caveat and produces no output file
+- [x] Headline counts unique Items; the sub-count reads `N items · M occurrences`
 
 ## Blocked by
 

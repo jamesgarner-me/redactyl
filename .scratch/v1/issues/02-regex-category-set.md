@@ -14,13 +14,13 @@ Add Categories: `PHONE`, `URL`, `IP`, `DATE`, `SSN`, `CREDIT_CARD` (Luhn-validat
 
 ## Acceptance criteria
 
-- [ ] All listed Categories are detected and produce correct `<CATEGORY_N>` Tokens
-- [ ] `CREDIT_CARD` matches pass Luhn; non-Luhn numbers are rejected
-- [ ] `IBAN` matches pass mod-97; invalid checksums are rejected
-- [ ] `SECRET` covers AWS / OpenAI / Anthropic / Stripe / Bearer / JWT / PEM formats
-- [ ] Overlapping Spans are merged with higher-confidence wins (no double-redaction, no Token collisions)
-- [ ] `Detector` accepts `customPatterns` and applies them, with no UI added
-- [ ] Per-Category unit tests: known PII matched, known non-PII rejected, Luhn + mod-97 validation
+- [x] All listed Categories are detected and produce correct `<CATEGORY_N>` Tokens
+- [x] `CREDIT_CARD` matches pass Luhn; non-Luhn numbers are rejected
+- [x] `IBAN` matches pass mod-97; invalid checksums are rejected
+- [x] `SECRET` covers AWS / OpenAI / Anthropic / Stripe / Bearer / JWT / PEM formats
+- [x] Overlapping Spans are merged with higher-confidence wins (no double-redaction, no Token collisions)
+- [x] `Detector` accepts `customPatterns` and applies them, with no UI added
+- [x] Per-Category unit tests: known PII matched, known non-PII rejected, Luhn + mod-97 validation
 
 ## Blocked by
 

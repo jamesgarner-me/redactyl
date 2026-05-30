@@ -1,6 +1,6 @@
 # Firebase Hosting deploy + custom domain
 
-Status: ready-for-human
+Status: completed
 
 ## Parent
 
@@ -21,11 +21,11 @@ The site must serve the Vite build with the same cross-origin-isolation headers 
 
 ## Acceptance criteria
 
-- [ ] Firebase project created and `firebase.json` committed with COOP/COEP headers and the cache-control rules above
-- [ ] Manual `pnpm build && firebase deploy --only hosting` succeeds from a local machine
-- [ ] `redactyl.jamesgarner.me` is configured as a custom domain on the Firebase site; A records added in Route 53; managed SSL provisioned
-- [ ] Loading `https://redactyl.jamesgarner.me/` shows DevTools → Application → Frame → **Cross-Origin Isolated: yes**
-- [ ] The model gate loads on the live URL and the user can complete a model download → text redaction end-to-end against the deployed site (smoke test that the threaded WASM path actually works in production, not just that headers are present)
+- [x] Firebase project created and `firebase.json` committed with COOP/COEP headers and the cache-control rules above
+- [x] Manual `pnpm build && firebase deploy --only hosting` succeeds from a local machine
+- [x] `redactyl.jamesgarner.me` is configured as a custom domain on the Firebase site; A records added in Route 53; managed SSL provisioned
+- [x] Loading `https://redactyl.jamesgarner.me/` shows DevTools → Application → Frame → **Cross-Origin Isolated: yes**
+- [x] The model gate loads on the live URL and the user can complete a model download → text redaction end-to-end against the deployed site (smoke test that the threaded WASM path actually works in production, not just that headers are present)
 
 ## Blocked by
 
@@ -57,3 +57,15 @@ None — can start immediately.
 4. Smoke test on the live URL: DevTools → Application → Frame →
    **Cross-Origin Isolated: yes**, then complete a model download → text
    redaction end-to-end to confirm the threaded WASM path works in production.
+
+**Verified done (2026-05-30):** site live at `https://redactyl.jamesgarner.me/`
+(HTTP 200). Cross-origin-isolation headers confirmed in production on both the
+document and hashed assets:
+
+- `/` → COOP `same-origin`, COEP `credentialless`, `Cache-Control: no-cache`
+- `/assets/**` → COOP `same-origin`, COEP `credentialless`,
+  `Cache-Control: public, max-age=31536000, immutable`
+
+Both COOP `same-origin` + COEP `credentialless` are present, which is what makes
+the frame cross-origin-isolated and lets the threaded ONNX WASM path initialise.
+Human-side Firebase project, DNS, and SSL all stood up. Status → completed.

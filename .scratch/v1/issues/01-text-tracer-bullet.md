@@ -16,13 +16,13 @@ The Web Worker boundary is established here on purpose so later detection layers
 
 ## Acceptance criteria
 
-- [ ] Project builds and runs via Vite; `vitest` runs the suite
-- [ ] Dropping a `.txt`/`.md` file containing emails moves through analyzing → review → redacting → receipt
-- [ ] Each unique email is one Item; repeated emails collapse and show an Occurrence count
-- [ ] Accepted Items are replaced with stable `<EMAIL_1>`, `<EMAIL_2>` … Tokens, numbered in first-appearance order
-- [ ] Detection runs in a Web Worker (UI thread is not blocked)
-- [ ] The receipt offers a manual `↓ save` of the output named `<basename>.redacted.txt`; nothing is written until the user clicks
-- [ ] Unit tests cover `Tokeniser` (ordering, per-Category counter) and a `TextRedactor` round-trip on the EMAIL case
+- [x] Project builds and runs via Vite; `vitest` runs the suite
+- [x] Dropping a `.txt`/`.md` file containing emails moves through analyzing → review → redacting → receipt
+- [x] Each unique email is one Item; repeated emails collapse and show an Occurrence count
+- [x] Accepted Items are replaced with stable `<EMAIL_1>`, `<EMAIL_2>` … Tokens, numbered in first-appearance order
+- [x] Detection runs in a Web Worker (UI thread is not blocked)
+- [x] The receipt offers a manual `↓ save` of the output named `<basename>.redacted.txt`; nothing is written until the user clicks
+- [x] Unit tests cover `Tokeniser` (ordering, per-Category counter) and a `TextRedactor` round-trip on the EMAIL case
 
 ## Blocked by
 
