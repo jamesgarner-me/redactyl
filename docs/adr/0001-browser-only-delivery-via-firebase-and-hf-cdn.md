@@ -8,6 +8,10 @@ Redactyl is a browser-only tool whose promise is that no document content leaves
 - **GCS bucket fronted by an HTTPS Load Balancer.** Functionally fine and gives full header control. Rejected: ~$18/month LB base cost regardless of traffic, against a $0 Firebase alternative.
 - **CSP.** Deferred. The privacy posture currently rests on COOP/COEP + "no analytics, no error reporting." A strict CSP allowlisting `huggingface.co` would harden this further; revisit if a future dependency adds an outbound call.
 
+## Status note (2026-05-30)
+
+The app shell has been migrated to **Vercel** (`redactyl.vercel.app`) as a temporary preference — consolidating with other projects already on Vercel, not because of any Firebase limitation. The Firebase deployment at `redactyl.jamesgarner.me` remains live and the config (`firebase.json`, `.firebaserc`) is preserved; CI workflows are disabled (manual trigger only) so the setup is reversible. The COOP/COEP constraints and HuggingFace CDN model strategy in this ADR are unchanged — `vercel.json` replaces `firebase.json` for header configuration only.
+
 ## Consequences
 
 - COEP must remain `credentialless` (not `require-corp`) because the model fetch is cross-origin and HF does not emit CORP headers. This excludes Safari < 17.4 from the threaded WASM / WebGPU NER path — the app must degrade gracefully on those browsers.
