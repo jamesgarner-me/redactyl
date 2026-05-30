@@ -1,6 +1,12 @@
 # In-app disclosure of the HuggingFace CDN model download
 
-Status: ready-for-agent
+Status: wontfix (subsumed by issue 20)
+
+> **Superseded (2026-05-30):** the HuggingFace CDN disclosure is now delivered by
+> [issue 20](20-purpose-intro-and-model-modal.md), which puts the disclosure in
+> the model-download modal's describe-view as part of the consent decision. The
+> requirement and its DOM-test acceptance criterion carry over there. Closing
+> this to avoid two issues editing the same gate copy.
 
 ## Parent
 
