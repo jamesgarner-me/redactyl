@@ -14,6 +14,9 @@ interface Props {
   // The mapping sidecar only makes sense for token-substituted text output; the
   // PDF path blanks glyphs (no tokens), so it hides the option.
   allowMapping: boolean;
+  // When set (a scanned/garbled PDF), a red banner is pinned above the results
+  // and redaction is hard-disabled — the file can't be safely sanitised.
+  safetyWarning?: string;
   onRedact: (acceptedSpans: Span[], saveMapping: boolean) => void;
   onRedactAnother: () => void;
 }
@@ -32,6 +35,7 @@ export function ReviewScreen({
   items,
   locate,
   allowMapping,
+  safetyWarning,
   onRedact,
   onRedactAnother,
 }: Props) {
@@ -55,7 +59,10 @@ export function ReviewScreen({
     [items, locate],
   );
 
-  if (items.length === 0) {
+  // The reassuring "all clear" empty state is only honest when nothing blocked
+  // detection. A scanned/garbled PDF with no Items is unsafe, not clean — it
+  // falls through to the banner treatment below.
+  if (items.length === 0 && !safetyWarning) {
     return (
       <div className="empty-state">
         <p className="empty-headline">✓ No personal data detected in {filename}</p>
@@ -116,13 +123,24 @@ export function ReviewScreen({
 
   return (
     <div className="review">
-      <SummaryStrip chips={chips} onToggle={toggleBucket} />
-      <EntityReviewList
-        rows={rows}
-        onToggle={(key) => setExcluded((prev) => toggled(prev, key))}
-        onReveal={(key) => setRevealed((prev) => toggled(prev, key))}
-        onDismiss={(key) => setDismissed((prev) => new Set(prev).add(key))}
-      />
+      {safetyWarning && (
+        <p className="safety-banner" role="alert">
+          ⚠ {safetyWarning}
+        </p>
+      )}
+      {items.length === 0 ? (
+        <p className="empty-caveat">
+          No personal data was detected — but this file is not sanitised (see above).
+        </p>
+      ) : (
+        <>
+          <SummaryStrip chips={chips} onToggle={toggleBucket} />
+          <EntityReviewList
+            rows={rows}
+            onToggle={(key) => setExcluded((prev) => toggled(prev, key))}
+            onReveal={(key) => setRevealed((prev) => toggled(prev, key))}
+            onDismiss={(key) => setDismissed((prev) => new Set(prev).add(key))}
+          />
       {dismissed.size > 0 && (
         <div className="dismissed-footer">
           <button
@@ -180,10 +198,13 @@ export function ReviewScreen({
           )}
         </div>
       )}
+        </>
+      )}
       <RedactButton
         itemCount={accepted.length}
         occurrenceCount={occurrenceCount}
-        disabled={accepted.length === 0}
+        disabled={accepted.length === 0 || !!safetyWarning}
+        reason={safetyWarning ? "This file can't be safely sanitised — no output is produced." : undefined}
         onClick={() => onRedact(accepted.flatMap((v) => v.item.spans), saveMapping)}
       />
     </div>

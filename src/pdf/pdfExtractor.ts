@@ -20,14 +20,40 @@ export interface GlyphBox {
   h: number;
 }
 
+// A fail-closed reason: a PDF Redactyl can't safely sanitise. `encrypted` is
+// fatal (no usable text); `scanned`/`garbled` carry the affected pages and still
+// allow partial detection results to be shown, with redaction blocked.
+export type PdfSafety =
+  | { kind: 'encrypted' }
+  | { kind: 'scanned'; pages: number[] }
+  | { kind: 'garbled'; pages: number[] };
+
 export interface ExtractedPdf {
   text: string;
   glyphs: GlyphBox[];
   pageCount: number;
+  safety: PdfSafety | null;
 }
 
 // Padding below the baseline so the redaction rectangle covers descenders.
 const DESCENT = 0.2;
+
+// A page is "garbled" past this fraction of unreadable characters — extraction
+// can't be trusted, so we must not claim the file was sanitised.
+const GARBLE_THRESHOLD = 0.05;
+
+// Fraction of characters that are the U+FFFD replacement char or non-printable
+// controls (tab/newline/CR excepted) — pdfjs's signal that glyphs didn't map to
+// Unicode. Exported for direct testing (authoring a truly garbled PDF is hard).
+export function garbleRatio(text: string): number {
+  if (text.length === 0) return 0;
+  let bad = 0;
+  for (const ch of text) {
+    const c = ch.codePointAt(0)!;
+    if (c === 0xfffd || (c < 0x20 && c !== 9 && c !== 10 && c !== 13)) bad++;
+  }
+  return bad / text.length;
+}
 
 // pdfjs neuters the ArrayBuffer it is handed (it transfers it to its worker), so
 // every call gets a fresh copy — the caller's bytes stay reusable (the redactor
@@ -52,15 +78,29 @@ async function loadPdfjs(): Promise<PdfjsModule> {
 
 export async function extractPdf(bytes: ArrayBuffer | Uint8Array): Promise<ExtractedPdf> {
   const pdfjs = await loadPdfjs();
+  const imageOps = imageDrawOps(pdfjs);
   const data = bytes instanceof Uint8Array ? new Uint8Array(bytes) : new Uint8Array(bytes);
-  const doc = await pdfjs.getDocument({ data }).promise;
+
+  let doc: Awaited<ReturnType<PdfjsModule['getDocument']>['promise']>;
+  try {
+    doc = await pdfjs.getDocument({ data }).promise;
+  } catch (err) {
+    // Password-protected: pdfjs can't read it at all — fail closed, no results.
+    if (err instanceof Error && err.name === 'PasswordException') {
+      return { text: '', glyphs: [], pageCount: 0, safety: { kind: 'encrypted' } };
+    }
+    throw err;
+  }
 
   let text = '';
   const glyphs: GlyphBox[] = [];
+  const scannedPages: number[] = [];
+  const garbledPages: number[] = [];
 
   for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
     const page = await doc.getPage(pageNum);
     const content = await page.getTextContent();
+    let pageText = '';
     for (const item of content.items) {
       if (!('str' in item)) continue; // skip marked-content boundary items
       const str = item.str;
@@ -70,7 +110,7 @@ export async function extractPdf(bytes: ArrayBuffer | Uint8Array): Promise<Extra
       const height = item.height || a;
       const charWidth = str.length > 0 ? item.width / str.length : 0;
       for (let i = 0; i < str.length; i++) {
-        const start = text.length + i;
+        const start = text.length + pageText.length + i;
         glyphs.push({
           start,
           end: start + 1,
@@ -81,13 +121,43 @@ export async function extractPdf(bytes: ArrayBuffer | Uint8Array): Promise<Extra
           h: height * (1 + DESCENT),
         });
       }
-      text += str;
-      if (item.hasEOL) text += '\n';
+      pageText += str;
+      if (item.hasEOL) pageText += '\n';
     }
+
+    // Scanned: no real text on the page but it paints an image — it's a scan
+    // with no text layer, so detection would see nothing and miss everything.
+    if (pageText.trim().length === 0) {
+      const { fnArray } = await page.getOperatorList();
+      if (fnArray.some((fn) => imageOps.has(fn))) scannedPages.push(pageNum);
+    } else if (garbleRatio(pageText) > GARBLE_THRESHOLD) {
+      garbledPages.push(pageNum);
+    }
+
+    text += pageText;
     // Separate pages so detection doesn't run words together across a page break
     // and so the page locator reads cleanly.
     if (pageNum < doc.numPages && !text.endsWith('\n')) text += '\n';
   }
 
-  return { text, glyphs, pageCount: doc.numPages };
+  // Scanned outranks garbled when both fire (a missing text layer is the clearer
+  // hazard); either way the UI blocks redaction and names the pages.
+  const safety: PdfSafety | null = scannedPages.length
+    ? { kind: 'scanned', pages: scannedPages }
+    : garbledPages.length
+      ? { kind: 'garbled', pages: garbledPages }
+      : null;
+
+  return { text, glyphs, pageCount: doc.numPages, safety };
+}
+
+// The pdfjs operator codes that draw raster images, used to tell a scanned page
+// (image, no text) from a genuinely blank one.
+function imageDrawOps(pdfjs: PdfjsModule): Set<number> {
+  const ops = pdfjs.OPS;
+  return new Set(
+    Object.entries(ops)
+      .filter(([name]) => /Image/.test(name) && name.startsWith('paint'))
+      .map(([, code]) => code as number),
+  );
 }

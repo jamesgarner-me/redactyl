@@ -12,7 +12,7 @@ import type { Item, Span } from './domain/types';
 import { assignTokens } from './redaction/tokeniser';
 import { redact } from './redaction/textRedactor';
 import { buildMapping, mappingName } from './redaction/mappingExporter';
-import { extractPdf, type GlyphBox } from './pdf/pdfExtractor';
+import { extractPdf, type GlyphBox, type PdfSafety } from './pdf/pdfExtractor';
 import { redactPdf } from './pdf/pdfRedactor';
 import { verifyPdf } from './pdf/pdfVerifier';
 import { TopBar } from './ui/TopBar';
@@ -32,7 +32,16 @@ import { sampleReview } from './demo/sampleDocument';
 // original bytes needed to redact (blank + black box) and re-verify the output.
 type ReviewBase =
   | { source: 'text'; filename: string; text: string }
-  | { source: 'pdf'; filename: string; text: string; glyphs: GlyphBox[]; bytes: Uint8Array };
+  | {
+      source: 'pdf';
+      filename: string;
+      text: string;
+      glyphs: GlyphBox[];
+      bytes: Uint8Array;
+      // Set for scanned/garbled PDFs: redaction is blocked and this is shown as
+      // a banner. Encrypted PDFs never reach review (blocking error instead).
+      warning?: string;
+    };
 
 type Screen =
   | { name: 'dropzone'; error?: string }
@@ -52,6 +61,16 @@ function redactedName(filename: string): string {
   const dot = filename.lastIndexOf('.');
   if (dot === -1) return `${filename}.redacted`;
   return `${filename.slice(0, dot)}.redacted${filename.slice(dot)}`;
+}
+
+// Banner copy for a non-fatal PDF safety issue (scanned/garbled). Both block
+// redaction and stress that the file is NOT sanitised.
+function safetyMessage(safety: Exclude<PdfSafety, { kind: 'encrypted' }>): string {
+  const pages = safety.pages.join(', ');
+  const plural = safety.pages.length > 1 ? 's' : '';
+  return safety.kind === 'scanned'
+    ? `Page${plural} ${pages} appear to be scans with no text layer. v1 doesn't OCR, so this file is NOT sanitised — don't paste it into an AI tool assuming it's clean.`
+    : `Page${plural} ${pages} produced unreadable text, so detection can't be trusted. This file is NOT sanitised.`;
 }
 
 // Source-specific review locator: page numbers for PDFs, line numbers for text.
@@ -94,8 +113,17 @@ export default function App() {
         // Keep the original bytes — extractPdf copies internally (pdfjs neuters
         // its input), so the same buffer feeds redaction later.
         const bytes = new Uint8Array(await file.arrayBuffer());
-        const { text, glyphs } = await extractPdf(bytes);
-        await analyze({ source: 'pdf', filename: file.name, text, glyphs, bytes }, regexEnabled);
+        const { text, glyphs, safety } = await extractPdf(bytes);
+        // Encrypted is fatal: no usable text, so show a blocking error, no list.
+        if (safety?.kind === 'encrypted') {
+          setScreen({
+            name: 'dropzone',
+            error: 'This PDF is password-protected. Decrypt it first, then try again.',
+          });
+          return;
+        }
+        const warning = safety ? safetyMessage(safety) : undefined;
+        await analyze({ source: 'pdf', filename: file.name, text, glyphs, bytes, warning }, regexEnabled);
       } else {
         const text = await file.text();
         await analyze({ source: 'text', filename: file.name, text }, regexEnabled);
@@ -122,6 +150,7 @@ export default function App() {
             text: screen.text,
             glyphs: screen.glyphs,
             bytes: screen.bytes,
+            warning: screen.warning,
           }
         : { source: 'text', filename: screen.filename, text: screen.text };
     void analyze(base, next);
@@ -157,7 +186,10 @@ export default function App() {
     review: Extract<ReviewBase, { source: 'pdf' }>,
     acceptedSpans: Span[],
   ) {
-    const { filename, bytes, glyphs } = review;
+    const { filename, bytes, glyphs, warning } = review;
+    // Defence in depth: the UI disables Redact when a safety warning is present,
+    // but never produce output for a file we've flagged as unsafe.
+    if (warning) return;
     setScreen({ name: 'redacting', filename });
     await new Promise((resolve) => setTimeout(resolve, 0));
     try {
@@ -289,6 +321,7 @@ export default function App() {
             items={screen.items}
             locate={makeLocator(screen)}
             allowMapping={screen.source === 'text'}
+            safetyWarning={screen.source === 'pdf' ? screen.warning : undefined}
             onRedact={handleRedact}
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />

@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { extractPdf } from './pdfExtractor';
-import { buildPdf } from './pdfTestUtils';
+import { extractPdf, garbleRatio } from './pdfExtractor';
+import { buildPdf, buildEncryptedPdf, buildScannedPdf } from './pdfTestUtils';
 import { makePageIndex, formatPageLocator } from '../domain/locators';
 
 describe('extractPdf', () => {
   it('extracts text with per-glyph boxes from a clean single-page PDF', async () => {
     const bytes = await buildPdf([['Email alice@example.com here']]);
-    const { text, glyphs, pageCount } = await extractPdf(bytes);
+    const { text, glyphs, pageCount, safety } = await extractPdf(bytes);
 
     expect(pageCount).toBe(1);
+    expect(safety).toBeNull();
     expect(text).toContain('alice@example.com');
     // One box per visible character, all on page 1, with positive geometry.
     const visible = text.replace(/\n/g, '');
@@ -30,5 +31,37 @@ describe('extractPdf', () => {
     expect(pageAt(text.indexOf('First'))).toBe(1);
     expect(pageAt(offset)).toBe(2);
     expect(formatPageLocator([pageAt(offset)])).toBe('p. 2');
+  });
+});
+
+describe('extractPdf safety checks', () => {
+  it('flags an encrypted PDF and returns no usable results', async () => {
+    const { safety, text, glyphs } = await extractPdf(await buildEncryptedPdf());
+    expect(safety).toEqual({ kind: 'encrypted' });
+    expect(text).toBe('');
+    expect(glyphs).toHaveLength(0);
+  });
+
+  it('flags a scanned (image-only, no text layer) page', async () => {
+    const { safety } = await extractPdf(await buildScannedPdf());
+    expect(safety).toEqual({ kind: 'scanned', pages: [1] });
+  });
+});
+
+describe('garbleRatio', () => {
+  const FFFD = String.fromCharCode(0xfffd); // U+FFFD replacement char
+
+  it('is zero for clean text and ignores tabs/newlines', () => {
+    expect(garbleRatio('Hello, world!\n\tfine')).toBe(0);
+  });
+
+  it('counts U+FFFD and control characters as unreadable', () => {
+    // 2 bad (a replacement char + a control char) out of 10 total.
+    expect(garbleRatio(`${FFFD}\x01abcdefgh`)).toBeCloseTo(0.2);
+  });
+
+  it('crosses the 5% threshold the extractor uses for a garbled page', () => {
+    const garbled = FFFD.repeat(6) + 'x'.repeat(94); // 6%
+    expect(garbleRatio(garbled)).toBeGreaterThan(0.05);
   });
 });

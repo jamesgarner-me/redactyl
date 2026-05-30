@@ -773,6 +773,19 @@ body {
   font-weight: 600;
 }
 
+/* Pinned above the review list for a scanned/garbled PDF — the file is not
+   sanitised and redaction is disabled. */
+.safety-banner {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 .empty-caveat {
   color: var(--text-dim);
 }
