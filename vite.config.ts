@@ -3,11 +3,13 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // transformers.js's threaded ONNX-Runtime WASM needs SharedArrayBuffer, which
-// requires cross-origin isolation. COEP `credentialless` keeps cross-origin
-// model fetches from the HF CDN working without requiring CORP headers on them.
+// requires cross-origin isolation. COEP `require-corp` works in every browser
+// (Safari included; `credentialless` is unsupported in Safari) — the only
+// cross-origin resource is the HF model, fetched with CORS, which satisfies
+// require-corp via the CDN's Access-Control-Allow-Origin response. See ADR 0001.
 const crossOriginIsolation = {
   'Cross-Origin-Opener-Policy': 'same-origin',
-  'Cross-Origin-Embedder-Policy': 'credentialless',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
 };
 
 export default defineConfig({

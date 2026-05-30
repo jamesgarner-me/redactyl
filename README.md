@@ -243,8 +243,10 @@ flowchart TD
   visual redaction box, so those pages are flattened to images. The text is still
   removed; it just isn't selectable in the output. (See the
   [fixtures note](./test/fixtures/README.md#note--why-form-xobject-rasterises).)
-- **Safari < 17.4** can't grant `SharedArrayBuffer` under COEP `credentialless`,
-  so the NER path doesn't run there; the app degrades to regex-only detection.
+- **Very old browsers without cross-origin isolation** can't grant
+  `SharedArrayBuffer`, which the in-browser model runtime requires. The app
+  detects this up front and shows a "browser not supported" advisory rather than
+  failing mid-inference. Current Chrome, Firefox, and Safari are all supported.
 - **Scanned and encrypted PDFs are refused, not processed.** v1 doesn't OCR or
   decrypt — both are detected and blocked fail-closed.
 - **Detection isn't exhaustive.** It's an aid, not a guarantee. Review the output.

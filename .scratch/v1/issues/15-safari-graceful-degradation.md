@@ -1,6 +1,14 @@
 # Safari < 17.4 graceful degradation at the model gate
 
-Status: ready-for-agent
+Status: completed
+
+> **Correction (2026-05-30):** the Safari-specific premise here was wrong.
+> Safari supports *no* version of `COEP: credentialless`, so the original
+> header excluded every Safari version, not just < 17.4. The real fix was to
+> switch COEP to `require-corp` (satisfied by the HF CDN's CORS headers) — see
+> the correction in [ADR 0001](../../../docs/adr/0001-browser-only-delivery-via-firebase-and-hf-cdn.md).
+> All current browsers now run the NER path. The `unsupported` gate built here
+> is kept as a generic fallback for any browser lacking `SharedArrayBuffer`.
 
 ## Parent
 
@@ -16,10 +24,10 @@ The check fits cleanly into the existing `modelGateReducer` state machine in `sr
 
 ## Acceptance criteria
 
-- [ ] `useModelGate` probes for `crossOriginIsolated` / `SharedArrayBuffer` before checking the IndexedDB cache and emits `probe_unsupported` when absent
-- [ ] `modelGateReducer` handles `probe_unsupported` by transitioning `probing → unsupported`; the state is terminal (no Download button rendered)
-- [ ] The UI for `unsupported` names the browsers that work (Chrome, Firefox, Safari 17.4+) and explains why in one sentence, in the same calm tone as the `missing` gate
-- [ ] Unit tests cover the new state transition in `modelGateReducer.test.ts`
+- [x] `useModelGate` probes for `crossOriginIsolated` / `SharedArrayBuffer` before checking the IndexedDB cache and emits `probe_unsupported` when absent
+- [x] `modelGateReducer` handles `probe_unsupported` by transitioning `probing → unsupported`; the state is terminal (no Download button rendered)
+- [x] The UI for `unsupported` names the browsers that work (Chrome, Firefox, Safari 17.4+) and explains why in one sentence, in the same calm tone as the `missing` gate
+- [x] Unit tests cover the new state transition in `modelGateReducer.test.ts`
 - [ ] On a Safari 17.3-or-lower user-agent (or with `SharedArrayBuffer` deleted in DevTools), the app loads, shows the advisory, and makes zero model-related network requests
 
 ## Blocked by

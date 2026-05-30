@@ -28,6 +28,18 @@ export function ModelGate({ state, onDownload, onRetry, onCancel }: Props) {
     );
   }
 
+  if (state.name === 'unsupported') {
+    return (
+      <div className="model-card">
+        <p className="model-promise">
+          <strong>Browser not supported.</strong> The in-browser WASM runtime requires{' '}
+          <code>SharedArrayBuffer</code>, which is unavailable in this browser — try current
+          Chrome, Firefox, or Safari 17.4 or later.
+        </p>
+      </div>
+    );
+  }
+
   if (state.name === 'downloading') {
     const p = state.progress;
     const hasBytes = p != null && p.total > 0;

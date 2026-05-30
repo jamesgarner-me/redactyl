@@ -14,6 +14,7 @@ export interface ModelProgress {
 export type ModelState =
   | { name: 'probing' } // checking IndexedDB cache on load
   | { name: 'missing' } // first visit — the quiet card
+  | { name: 'unsupported' } // browser lacks SharedArrayBuffer (Safari < 17.4)
   | { name: 'downloading'; progress: ModelProgress | null }
   | { name: 'ready' }
   | { name: 'error'; message: string };
@@ -21,6 +22,7 @@ export type ModelState =
 export type ModelEvent =
   | { type: 'probe_hit' } // cache probe found the model
   | { type: 'probe_miss' } // no cached model
+  | { type: 'probe_unsupported' } // browser lacks SharedArrayBuffer — terminal
   | { type: 'download_start' } // begin (or re-)download / retry
   | { type: 'progress'; progress: ModelProgress }
   | { type: 'download_success' }
@@ -47,9 +49,13 @@ export function modelGateReducer(state: ModelState, event: ModelEvent): ModelSta
       return state.name === 'probing' ? { name: 'ready' } : state;
     case 'probe_miss':
       return state.name === 'probing' ? { name: 'missing' } : state;
+    case 'probe_unsupported':
+      return state.name === 'probing' ? { name: 'unsupported' } : state;
     case 'download_start':
       // From the gate (missing / error retry) or a Re-download while ready.
-      return state.name === 'downloading' ? state : { name: 'downloading', progress: null };
+      return state.name === 'missing' || state.name === 'error' || state.name === 'ready'
+        ? { name: 'downloading', progress: null }
+        : state;
     case 'progress':
       return state.name === 'downloading'
         ? { name: 'downloading', progress: event.progress }

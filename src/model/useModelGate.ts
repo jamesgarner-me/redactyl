@@ -32,7 +32,15 @@ export function useModelGate(client: ModelClient): ModelGate {
   const abortRef = useRef<AbortController | null>(null);
 
   // Cache probe on mount → ready (cached) or missing (first visit).
+  // Pre-flight: the WASM threading model needs SharedArrayBuffer, which the
+  // browser only grants under cross-origin isolation (our COOP/COEP headers).
+  // Absent it, fail fast to the unsupported gate rather than a confusing
+  // mid-inference crash — covers browsers too old for cross-origin isolation.
   useEffect(() => {
+    if (typeof SharedArrayBuffer === 'undefined') {
+      dispatch({ type: 'probe_unsupported' });
+      return;
+    }
     let active = true;
     client
       .probe()

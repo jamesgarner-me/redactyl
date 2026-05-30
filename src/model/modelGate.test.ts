@@ -69,4 +69,23 @@ describe('modelGateReducer', () => {
   it('ignores a late probe result once past probing', () => {
     expect(modelGateReducer({ name: 'ready' }, { type: 'probe_miss' })).toEqual({ name: 'ready' });
   });
+
+  it('probe_unsupported transitions probing → unsupported', () => {
+    expect(
+      modelGateReducer({ name: 'probing' }, { type: 'probe_unsupported' }),
+    ).toEqual({ name: 'unsupported' });
+  });
+
+  it('unsupported ignores model-lifecycle events', () => {
+    const s: ModelState = { name: 'unsupported' };
+    expect(modelGateReducer(s, { type: 'probe_hit' })).toEqual(s);
+    expect(modelGateReducer(s, { type: 'probe_miss' })).toEqual(s);
+    expect(modelGateReducer(s, { type: 'download_start' })).toEqual(s);
+  });
+
+  it('probe_unsupported from a non-probing state is ignored', () => {
+    expect(
+      modelGateReducer({ name: 'missing' }, { type: 'probe_unsupported' }),
+    ).toEqual({ name: 'missing' });
+  });
 });
