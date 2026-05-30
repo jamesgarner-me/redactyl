@@ -55,7 +55,7 @@ party downstream of your clipboard* — and Redactyl itself.
   network call Redactyl ever makes, and it carries **no document data** — it's a
   one-way download of public model weights. After it's cached, Redactyl works
   fully offline. See [ADR 0001](./docs/adr/0001-browser-only-delivery-via-firebase-and-hf-cdn.md).
-- **The app shell is served by Firebase Hosting.** Firebase serves only static
+- **The app shell is served by Vercel.** Vercel serves only static
   files (HTML/JS/CSS/WASM); it never sees your documents. You can pin a known-good
   version by going offline after load — the service worker serves the cached copy.
 - **No telemetry, no analytics, no error reporting.** There is no third-party
@@ -85,7 +85,7 @@ flowchart TD
         app --> out
     end
 
-    fb["Firebase Hosting<br/>static app shell only"]
+    fb["Vercel<br/>static app shell only"]
     hf["HuggingFace CDN<br/>model weights only"]
 
     fb -. "first load (no document data)" .-> app
@@ -108,7 +108,7 @@ Redactyl persists as little as possible, and nothing sensitive by default.
 |---|---|---|---|
 | **Your document** | Browser memory (RAM) only | While you're working on it | **Never.** Not written to disk, not uploaded. Gone when you close the tab. |
 | **NER model weights (~770 MB)** | Cache Storage (`transformers-cache`) | After you click *Download* | Downloaded *from* HuggingFace once; never uploaded. |
-| **App shell + worker + ONNX WASM** | Service-worker precache (Cache Storage) | On first visit | Downloaded *from* Firebase once; enables offline use. |
+| **App shell + worker + ONNX WASM** | Service-worker precache (Cache Storage) | On first visit | Downloaded *from* Vercel once; enables offline use. |
 | **Redacted output / mapping file** | Your local disk | Only when you click *Save* | Only where *you* save it. Nothing auto-downloads. |
 | **Theme + detection preferences** | `localStorage` (`redactyl-theme`, …) | When you change them | Never. Plain UI state, no PII. |
 
@@ -123,7 +123,7 @@ everything above.
 Don't trust the claim — check it. It takes about a minute in DevTools.
 
 1. **Open DevTools → Network**, and load the app. On a first visit you'll see the
-   app shell load from `redactyl.jamesgarner.me` and, *after you click Download*,
+   app shell load from `redactyl-app.vercel.app` and, *after you click Download*,
    the model files stream from `huggingface.co`. These are the only requests.
 2. **Redact a file and watch the Network tab.** Drop a `.txt` or `.pdf`, let
    detection run, review, and click **Redact**. **No new network requests
@@ -135,7 +135,7 @@ Don't trust the claim — check it. It takes about a minute in DevTools.
    off*. If documents were being uploaded, this would be impossible.
 4. **Confirm isolation.** DevTools → Application → Frame should report
    **Cross-Origin Isolated: yes** — the headers that let the model run locally,
-   set in [`firebase.json`](./firebase.json) and mirrored in
+   set in [`vercel.json`](./vercel.json) and mirrored in
    [`vite.config.ts`](./vite.config.ts).
 
 This is enforced in code too: a CI test
