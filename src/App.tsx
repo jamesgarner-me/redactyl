@@ -53,7 +53,6 @@ type Screen =
       outputName: string;
       blob: Blob;
       mapping?: { name: string; blob: Blob };
-      verified?: boolean;
       rasterisedPages?: number[];
     };
 
@@ -213,7 +212,6 @@ export default function App() {
         name: 'receipt',
         outputName: redactedName(filename),
         blob,
-        verified: true,
         rasterisedPages: outcome.rasterisedPages,
       });
     } catch {
@@ -317,7 +315,6 @@ export default function App() {
             outputName={screen.outputName}
             blob={screen.blob}
             mapping={screen.mapping}
-            verified={screen.verified}
             rasterisedPages={screen.rasterisedPages}
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />

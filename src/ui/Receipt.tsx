@@ -7,10 +7,10 @@ interface Props {
   outputName: string;
   blob: Blob;
   mapping?: SaveTarget;
-  // PDFs go through PdfVerifier (re-parse + re-detect) before reaching here, so
-  // we can assert the output is provably clean. Text output has no such pass.
-  verified?: boolean;
-  // Pages flattened to an image by the rasterise fallback (text not selectable).
+  // Pages the rasterise fallback flattened to an image to strip PII the text
+  // layer couldn't. We surface this because it changes the output (text on
+  // those pages is no longer selectable); the verification pass itself is an
+  // internal guarantee, not something the user needs to read about.
   rasterisedPages?: number[];
   onRedactAnother: () => void;
 }
@@ -26,27 +26,17 @@ function saveBlob(target: SaveTarget) {
   URL.revokeObjectURL(url);
 }
 
-export function Receipt({
-  outputName,
-  blob,
-  mapping,
-  verified,
-  rasterisedPages,
-  onRedactAnother,
-}: Props) {
+export function Receipt({ outputName, blob, mapping, rasterisedPages, onRedactAnother }: Props) {
   const flattened = rasterisedPages && rasterisedPages.length > 0;
+  const many = flattened && rasterisedPages.length > 1;
   return (
     <div className="receipt">
       <h2 className="receipt-title">Complete</h2>
-      {verified && (
-        <p className="verified-badge" role="status">
-          ✓ Verified — no detectable PII in the output
-        </p>
-      )}
       {flattened && (
-        <p className="raster-note">
-          ✓ Re-verified after flattening page{rasterisedPages.length > 1 ? 's' : ''}{' '}
-          {rasterisedPages.join(', ')} — those pages are now images, so their text isn't selectable.
+        <p className="raster-note" role="status">
+          Page{many ? 's' : ''} {rasterisedPages.join(', ')} had PII that couldn’t be removed from
+          the text layer, so {many ? 'they were' : 'it was'} flattened to an image. Text on{' '}
+          {many ? 'those pages' : 'that page'} is no longer selectable or searchable.
         </p>
       )}
       <div className="output-card">
