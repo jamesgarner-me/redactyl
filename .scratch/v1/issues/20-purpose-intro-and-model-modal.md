@@ -1,6 +1,6 @@
 # Purpose-first landing intro + model download gated behind a modal
 
-Status: ready-for-agent
+Status: ready-for-human (code complete + tested; live visual/interaction sign-off pending)
 
 ## Parent
 
@@ -73,18 +73,23 @@ The `require-corp` correction (ADR 0001) makes two things stale — fix both her
 
 ## Acceptance criteria
 
-- [ ] The `missing` landing card leads with the purpose statement, then the privacy promise, then a single **Get Started** button; copy uses "personal data" and "AI tool" and avoids user-facing "strip"
-- [ ] **Get Started** opens a native `<dialog>`; the model gate state machine is unchanged (modal-ness is local UI state)
-- [ ] Describe-view shows the model description, the facts table, the disclaimer blockquote, the HuggingFace disclosure, and the download button
-- [ ] Downloading-view shows progress (bytes / total / % / file) + Cancel + the disclaimer + the collapsible pipeline diagram
-- [ ] The disclaimer blockquote is present in **both** the describe and downloading views and is never nested inside the collapsible panel
-- [ ] While `downloading`, scrim-click and Escape do **not** dismiss; **Cancel** aborts and returns to the describe view inside the open modal
-- [ ] In `missing` and `error`, scrim-click / Escape dismiss the modal; on `ready` the modal auto-closes and the dropzone shows
-- [ ] Modal a11y: `aria-modal`/`<dialog>`, `aria-labelledby` the title, focus moves into the modal on open and back to **Get Started** on close
-- [ ] HuggingFace named as the model source + stated as the only outbound request (delivers issue 16); reviewed against `CONTEXT.md` vocabulary
-- [ ] `unsupported` copy and the `modelGate.ts` comment no longer reference a Safari-version cutoff; ADR 0001 intro/status-note reconciled to `require-corp`
-- [ ] No new dependencies; no new outbound calls; no analytics/telemetry
-- [ ] DOM tests: disclosure string present in the describe-view; disclaimer present (and not inside `<details>`) in both views; scrim/Escape inert while downloading; the 7 pipeline stages present in order
+- [x] The `missing` landing card leads with the purpose statement, then the privacy promise, then a single **Get Started** button; copy uses "personal data" and "AI tool" and avoids user-facing "strip" *(test asserts order + absence of "strip")*
+- [x] **Get Started** opens a native `<dialog>`; the model gate state machine is unchanged (modal-ness is local UI state in `ModelGate`)
+- [x] Describe-view shows the model description, the facts table, the disclaimer blockquote, the HuggingFace disclosure, and the download button
+- [x] Downloading-view shows progress (bytes / total / % / file) + Cancel + the disclaimer + the collapsible pipeline diagram
+- [x] The disclaimer blockquote is present in **both** the describe and downloading views and is never nested inside the collapsible panel *(test)*
+- [x] While `downloading`, scrim-click and Escape do **not** dismiss (`canDismissModal` gates both handlers + the `cancel` event is `preventDefault`-ed); **Cancel** aborts and returns to the describe view inside the open modal (the `cancel` reducer event → `missing`, modal stays open)
+- [x] In `missing` and `error`, scrim-click / Escape dismiss the modal; on `ready` the modal auto-closes (ModelGate unmounts; App shows the dropzone)
+- [x] Modal a11y: native `<dialog>`/`showModal()` (focus trap + inert background), `aria-labelledby` the title; native dialog moves focus into the modal on open and restores it to **Get Started** on close
+- [x] HuggingFace named as the model source + stated as the only outbound request (delivers issue 16); reviewed against `CONTEXT.md` vocabulary
+- [x] `unsupported` copy and the `modelGate.ts` comment no longer reference a Safari-version cutoff; ADR 0001 intro/status-note reconciled to `require-corp`
+- [x] No new dependencies; no new outbound calls; no analytics/telemetry
+- [x] DOM tests: disclosure string present in the describe-view; disclaimer present (and not inside `<details>`) in both views; dismiss-while-downloading predicate covered; the 7 pipeline stages present in order
+
+## Verification
+
+- `tsc --noEmit` clean; `vitest run` 147 passed / 1 pre-existing skip (gate suite 22 passed); `pnpm build` succeeds (PWA precache regenerated).
+- **Pending live sign-off:** the in-browser visual + interaction pass (open modal, watch a real download, confirm scrim/Escape inert mid-download, focus return) could not be auto-driven — the Chrome DevTools profile was already in use. Preview served at `http://localhost:4317/` for manual confirmation.
 
 ## Implementation notes
 

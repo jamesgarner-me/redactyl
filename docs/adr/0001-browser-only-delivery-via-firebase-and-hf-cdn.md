@@ -1,6 +1,6 @@
 # Browser-only delivery via Firebase Hosting + HuggingFace-hosted model
 
-Redactyl is a browser-only tool whose promise is that no document content leaves the device. The app shell is served from **Firebase Hosting** at `redactyl.jamesgarner.me`, and the 770 MB `openai/privacy-filter` NER model is fetched from the **HuggingFace CDN** at runtime behind a consent gate, cached in the browser. Firebase was chosen over a GCS bucket because the cross-origin-isolated headers the app requires (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: credentialless`) need a host that lets us set arbitrary response headers without standing up an HTTPS Load Balancer; the HF CDN was chosen over self-hosting because it keeps the deploy inside the free tier and aligns with the consent-first download story.
+Redactyl is a browser-only tool whose promise is that no document content leaves the device. The app shell is served from **Firebase Hosting** at `redactyl.jamesgarner.me`, and the 770 MB `openai/privacy-filter` NER model is fetched from the **HuggingFace CDN** at runtime behind a consent gate, cached in the browser. Firebase was chosen over a GCS bucket because the cross-origin-isolated headers the app requires (`Cross-Origin-Opener-Policy: same-origin` + a `Cross-Origin-Embedder-Policy`) need a host that lets us set arbitrary response headers without standing up an HTTPS Load Balancer; the HF CDN was chosen over self-hosting because it keeps the deploy inside the free tier and aligns with the consent-first download story. (COEP started as `credentialless` but is now `require-corp` — see the 2026-05-30 correction below.)
 
 ## Considered options
 
@@ -10,7 +10,7 @@ Redactyl is a browser-only tool whose promise is that no document content leaves
 
 ## Status note (2026-05-30)
 
-The app shell has been migrated to **Vercel** (`redactyl-app.vercel.app`) as a temporary preference — consolidating with other projects already on Vercel, not because of any Firebase limitation. The Firebase deployment at `redactyl.jamesgarner.me` remains live and the config (`firebase.json`, `.firebaserc`) is preserved; CI workflows are disabled (manual trigger only) so the setup is reversible. The COOP/COEP constraints and HuggingFace CDN model strategy in this ADR are unchanged — `vercel.json` replaces `firebase.json` for header configuration only.
+The app shell has been migrated to **Vercel** (`redactyl-app.vercel.app`) as a temporary preference — consolidating with other projects already on Vercel, not because of any Firebase limitation. The Firebase deployment at `redactyl.jamesgarner.me` remains live and the config (`firebase.json`, `.firebaserc`) is preserved; CI workflows are disabled (manual trigger only) so the setup is reversible. The cross-origin-isolation requirement and HuggingFace CDN model strategy are unchanged — `vercel.json` replaces `firebase.json` for header configuration only (both carry the `require-corp` headers per the correction below).
 
 ## Correction (2026-05-30): COEP is `require-corp`, not `credentialless`
 

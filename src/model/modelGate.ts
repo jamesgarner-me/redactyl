@@ -14,7 +14,7 @@ export interface ModelProgress {
 export type ModelState =
   | { name: 'probing' } // checking IndexedDB cache on load
   | { name: 'missing' } // first visit — the quiet card
-  | { name: 'unsupported' } // browser lacks SharedArrayBuffer (Safari < 17.4)
+  | { name: 'unsupported' } // browser lacks SharedArrayBuffer / cross-origin isolation
   | { name: 'downloading'; progress: ModelProgress | null }
   | { name: 'ready' }
   | { name: 'error'; message: string };
