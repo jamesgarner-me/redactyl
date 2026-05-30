@@ -188,12 +188,23 @@ body {
   padding: 2rem 1.25rem;
 }
 
-/* Purpose + privacy intro above the dropzone. A centred 560px column that
-   reuses the pre-ready landing's lede + promise-callout styles, so loading the
-   model reads as continuity rather than a jump to a context-free drop target. */
-.dropzone-intro {
+/* Model-ready dropzone panel — the bordered light-blue card chrome (mirrors
+   .model-card) wraps the purpose + privacy intro and the dashed drop target, so
+   the ready screen reads as continuity with the pre-ready landing. */
+.dropzone-panel {
   max-width: 560px;
-  margin: 0 auto 1.5rem;
+  margin: 2rem auto;
+  padding: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+/* Reuses the landing's lede + promise-callout styles; left-aligned and spaced
+   above the nested dropzone (the callout's own bottom margin is dropped). */
+.dropzone-intro {
+  margin: 0 0 1.5rem;
+  text-align: left;
 }
 
 .dropzone-intro .model-promise-callout {
@@ -224,13 +235,15 @@ body {
   margin: 0.5rem 0;
 }
 
+/* Primary CTA — matches the accent .redact button used elsewhere. */
 .choose-file {
   font: inherit;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border);
+  font-weight: 600;
+  padding: 0.6rem 1.4rem;
+  border: none;
   border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--accent);
+  color: #fff;
   cursor: pointer;
 }
 

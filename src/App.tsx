@@ -296,12 +296,17 @@ export default function App() {
       case 'dropzone':
         return (
           <>
-            <DropzoneIntro />
-            <FileDropZone
-              onFile={handleFile}
-              onReject={(error) => setScreen({ name: 'dropzone', error })}
-              error={screen.error}
-            />
+            {/* The pre-ready landing's bordered light-blue card chrome now wraps
+                the intro + the dashed drop target, so the ready screen mirrors
+                the homepage rather than dropping onto a bare drop target. */}
+            <div className="dropzone-panel">
+              <DropzoneIntro />
+              <FileDropZone
+                onFile={handleFile}
+                onReject={(error) => setScreen({ name: 'dropzone', error })}
+                error={screen.error}
+              />
+            </div>
             {isDemoEnabled() && (
               <button type="button" className="demo-button" onClick={loadSample}>
                 ▶ Load sample document (demo)
