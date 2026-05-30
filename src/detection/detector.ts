@@ -77,9 +77,11 @@ export function createModelWorker(): ModelWorker {
           progressCbs.get(msg.id)?.(msg.processed, msg.total);
           break;
         case 'progress':
+          if (activeLoad) armStall(); // progress means it's alive — restart the clock
           activeLoad?.onProgress({ file: msg.file, loaded: msg.loaded, total: msg.total });
           break;
         case 'ready': {
+          disarmStall();
           try {
             localStorage.setItem(CACHE_FLAG, '1');
           } catch {
@@ -91,6 +93,7 @@ export function createModelWorker(): ModelWorker {
           break;
         }
         case 'error': {
+          disarmStall();
           const load = activeLoad;
           activeLoad = null;
           load?.reject(new Error(msg.message));
@@ -107,6 +110,44 @@ export function createModelWorker(): ModelWorker {
   }
 
   wire(worker);
+
+  // A stalled load (e.g. a stale cache handing the ONNX runtime an HTML document
+  // where it expects a .wasm module) hangs the worker silently — no progress, no
+  // error. Watch for progress and, if none arrives for STALL_MS, tear the worker
+  // down (as Cancel does) and surface an actionable error so the gate shows
+  // "clear the cache and retry" rather than an endless spinner.
+  const STALL_MS = 30_000;
+  let stallTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function disarmStall() {
+    if (stallTimer !== null) {
+      clearTimeout(stallTimer);
+      stallTimer = null;
+    }
+  }
+
+  // Replace the worker to truly stop an in-flight (or hung) load — transformers.js
+  // can't abort its own fetch. Shared by Cancel and the stall watchdog.
+  function replaceWorker() {
+    worker.terminate();
+    pending.clear();
+    progressCbs.clear();
+    worker = spawn();
+    wire(worker);
+  }
+
+  function armStall() {
+    disarmStall();
+    stallTimer = setTimeout(() => {
+      const load = activeLoad;
+      if (!load) return;
+      activeLoad = null;
+      replaceWorker();
+      load.reject(
+        new Error('Model load stalled. This is usually a stale cache — clear the cache and retry.'),
+      );
+    }, STALL_MS);
+  }
 
   const client: ModelClient = {
     async probe() {
@@ -125,17 +166,13 @@ export function createModelWorker(): ModelWorker {
           () => {
             if (!activeLoad) return;
             activeLoad = null;
-            // transformers.js can't abort an in-flight fetch, so replace the
-            // worker to truly stop the download.
-            worker.terminate();
-            pending.clear();
-            progressCbs.clear();
-            worker = spawn();
-            wire(worker);
+            disarmStall();
+            replaceWorker();
             reject(new DOMException('Aborted', 'AbortError'));
           },
           { once: true },
         );
+        armStall();
         worker.postMessage({ type: 'load' });
       });
     },
