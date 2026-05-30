@@ -13,8 +13,8 @@ import { assignTokens } from './redaction/tokeniser';
 import { redact } from './redaction/textRedactor';
 import { buildMapping, mappingName } from './redaction/mappingExporter';
 import { extractPdf, type GlyphBox, type PdfSafety } from './pdf/pdfExtractor';
-import { redactPdf } from './pdf/pdfRedactor';
-import { verifyPdf } from './pdf/pdfVerifier';
+import { redactAndVerifyPdf } from './pdf/pdfRedactor';
+import { renderPageToPng } from './pdf/pdfRender';
 import { TopBar } from './ui/TopBar';
 import { FileDropZone } from './ui/FileDropZone';
 import { Analyzing } from './ui/Analyzing';
@@ -54,6 +54,7 @@ type Screen =
       blob: Blob;
       mapping?: { name: string; blob: Blob };
       verified?: boolean;
+      rasterisedPages?: number[];
     };
 
 // `notes.txt` -> `notes.redacted.txt`; `report.pdf` -> `report.redacted.pdf`.
@@ -193,21 +194,28 @@ export default function App() {
     setScreen({ name: 'redacting', filename });
     await new Promise((resolve) => setTimeout(resolve, 0));
     try {
-      const output = await redactPdf(bytes, acceptedSpans, glyphs);
-      const result = await verifyPdf(output, groupItems(acceptedSpans), (t) =>
-        modelWorker.detector.detect(t, { regex: regexEnabled }),
-      );
-      if (!result.ok) {
+      const outcome = await redactAndVerifyPdf(bytes, acceptedSpans, glyphs, {
+        detect: (t) => modelWorker.detector.detect(t, { regex: regexEnabled }),
+        renderPage: renderPageToPng,
+      });
+      if (!outcome.ok) {
+        // A leak survived even the rasterise fallback — fail closed.
         setScreen({
           name: 'dropzone',
-          error: `Redaction couldn't be verified — ${result.leaks.length} value(s) still detected in the output. No file was produced.`,
+          error: `Redaction couldn't be verified even after flattening affected pages. No file was produced.`,
         });
         return;
       }
       // Uint8Array.from yields an ArrayBuffer-backed copy (a valid BlobPart);
       // pdf-lib's save() return is typed over the broader ArrayBufferLike.
-      const blob = new Blob([Uint8Array.from(output)], { type: 'application/pdf' });
-      setScreen({ name: 'receipt', outputName: redactedName(filename), blob, verified: true });
+      const blob = new Blob([Uint8Array.from(outcome.bytes)], { type: 'application/pdf' });
+      setScreen({
+        name: 'receipt',
+        outputName: redactedName(filename),
+        blob,
+        verified: true,
+        rasterisedPages: outcome.rasterisedPages,
+      });
     } catch {
       setScreen({ name: 'dropzone', error: 'Could not redact this PDF. No file was produced.' });
     }
@@ -310,6 +318,7 @@ export default function App() {
             blob={screen.blob}
             mapping={screen.mapping}
             verified={screen.verified}
+            rasterisedPages={screen.rasterisedPages}
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />
         );

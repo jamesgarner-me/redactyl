@@ -933,6 +933,15 @@ body {
   font-size: 1.2rem;
 }
 
+/* Shown when the rasterise fallback flattened one or more pages to images. */
+.raster-note {
+  max-width: 460px;
+  margin: 0.5rem auto 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
 /* Shown only for PDFs, which pass through PdfVerifier before download. */
 .verified-badge {
   display: inline-block;

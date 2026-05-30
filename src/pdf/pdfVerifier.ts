@@ -10,10 +10,14 @@
 
 import type { Item, Span } from '../domain/types';
 import { extractPdf } from './pdfExtractor';
+import { makePageIndex } from '../domain/locators';
 
 export interface VerificationResult {
   ok: boolean;
   leaks: Item[];
+  // 1-based pages of the output where a leaked value still appears — what the
+  // rasterise fallback (slice 10) needs to flatten.
+  leakPages: number[];
 }
 
 export async function verifyPdf(
@@ -21,9 +25,18 @@ export async function verifyPdf(
   expectedAbsent: Item[],
   detect: (text: string) => Span[] | Promise<Span[]>,
 ): Promise<VerificationResult> {
-  const { text } = await extractPdf(bytes);
+  const { text, glyphs } = await extractPdf(bytes);
   const spans = await detect(text);
-  const detectedValues = new Set(spans.map((s) => s.value));
-  const leaks = expectedAbsent.filter((item) => detectedValues.has(item.value));
-  return { ok: leaks.length === 0, leaks };
+  const leakedValues = new Set(expectedAbsent.map((i) => i.value));
+  const leaks = expectedAbsent.filter((item) => spans.some((s) => s.value === item.value));
+
+  const pageAt = makePageIndex(glyphs);
+  const pages = new Set<number>();
+  for (const span of spans) if (leakedValues.has(span.value)) pages.add(pageAt(span.start));
+
+  return {
+    ok: leaks.length === 0,
+    leaks,
+    leakPages: [...pages].sort((a, b) => a - b),
+  };
 }

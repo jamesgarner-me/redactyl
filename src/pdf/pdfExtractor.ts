@@ -61,7 +61,7 @@ export function garbleRatio(text: string): number {
 type PdfjsModule = typeof import('pdfjs-dist/legacy/build/pdf.mjs');
 let pdfjsPromise: Promise<PdfjsModule> | null = null;
 
-async function loadPdfjs(): Promise<PdfjsModule> {
+export async function loadPdfjs(): Promise<PdfjsModule> {
   if (!pdfjsPromise) {
     pdfjsPromise = import('pdfjs-dist/legacy/build/pdf.mjs').then(async (pdfjs) => {
       // In the browser, point pdfjs at its bundled worker; under Node (tests)

@@ -27,7 +27,7 @@ describe('verifyPdf', () => {
     ];
 
     const result = await verifyPdf(bytes, expectedAbsent, detect);
-    expect(result).toEqual({ ok: true, leaks: [] });
+    expect(result).toEqual({ ok: true, leaks: [], leakPages: [] });
   });
 
   it('does not flag an innocent substring as a leak (Span comparison, not substring)', async () => {
@@ -38,6 +38,6 @@ describe('verifyPdf', () => {
     const expectedAbsent: Item[] = [{ value: 'John', category: 'PERSON', spans: [] }];
 
     const result = await verifyPdf(bytes, expectedAbsent, detect);
-    expect(result).toEqual({ ok: true, leaks: [] });
+    expect(result).toEqual({ ok: true, leaks: [], leakPages: [] });
   });
 });

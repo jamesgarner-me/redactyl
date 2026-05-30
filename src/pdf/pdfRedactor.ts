@@ -26,9 +26,25 @@ import {
   type PDFPage,
 } from 'pdf-lib';
 import type { Span } from '../domain/types';
+import { groupItems } from '../domain/items';
 import type { GlyphBox } from './pdfExtractor';
+import { verifyPdf } from './pdfVerifier';
 
 const latin1 = new TextDecoder('latin1');
+
+// Renders one page (1-based) of a PDF to a PNG. Injected because rendering needs
+// a canvas — the browser supplies a real one; the pipeline stays env-agnostic.
+export type RenderPageToPng = (bytes: Uint8Array, pageNumber: number) => Promise<Uint8Array>;
+
+export interface RedactionOutcome {
+  bytes: Uint8Array;
+  // Whether the output passed verification. False means a leak survived even the
+  // rasterise fallback — the caller must fail closed.
+  ok: boolean;
+  // Pages flattened to an image because the content-stream rewrite left residual
+  // text (CID/subset fonts, kerned `TJ`). Empty when the rewrite alone sufficed.
+  rasterisedPages: number[];
+}
 
 export async function redactPdf(
   bytes: ArrayBuffer | Uint8Array,
@@ -42,6 +58,59 @@ export async function redactPdf(
   drawRedactionBoxes(doc, acceptedSpans, glyphs);
 
   return doc.save();
+}
+
+// The full true-redaction pipeline: rewrite + verify, then rasterise any page
+// that still leaks and re-verify. Returns fail-closed (`ok: false`) if a leak
+// survives even rasterisation. Matches the PRD's PDF redaction pipeline.
+export async function redactAndVerifyPdf(
+  source: Uint8Array,
+  acceptedSpans: Span[],
+  glyphs: GlyphBox[],
+  deps: {
+    detect: (text: string) => Span[] | Promise<Span[]>;
+    renderPage: RenderPageToPng;
+  },
+): Promise<RedactionOutcome> {
+  const expectedAbsent = groupItems(acceptedSpans);
+  const values = [...new Set(acceptedSpans.map((s) => s.value))].filter(Boolean);
+
+  const doc = await PDFDocument.load(source);
+  blankContentStreams(doc, values);
+  drawRedactionBoxes(doc, acceptedSpans, glyphs);
+  let bytes = await doc.save();
+
+  let result = await verifyPdf(bytes, expectedAbsent, deps.detect);
+  if (result.ok) return { bytes, ok: true, rasterisedPages: [] };
+
+  // Residual text on some pages (tricky fonts). Flatten each to an image of the
+  // already-box-drawn render, so the PII is both covered and unselectable.
+  const rasterisedPages = result.leakPages;
+  for (const pageNumber of rasterisedPages) {
+    const png = await deps.renderPage(bytes, pageNumber);
+    await rasterisePage(doc, pageNumber, png);
+  }
+  bytes = await doc.save();
+
+  result = await verifyPdf(bytes, expectedAbsent, deps.detect);
+  return { bytes, ok: result.ok, rasterisedPages };
+}
+
+// Replace a page's content with a single full-page image, dropping every text
+// operator (and the fonts they referenced) so nothing is selectable/extractable.
+async function rasterisePage(doc: PDFDocument, pageNumber: number, png: Uint8Array): Promise<void> {
+  const page = doc.getPage(pageNumber - 1);
+  const image = await doc.embedPng(png);
+  const { width, height } = page.getSize();
+  const ctx = doc.context;
+
+  // `w 0 0 h 0 0 cm` maps the unit image square onto the whole page.
+  const content = `q\n${width} 0 0 ${height} 0 0 cm\n/RedactylRaster Do\nQ\n`;
+  page.node.set(PDFName.of('Contents'), ctx.register(ctx.flateStream(content)));
+  page.node.set(
+    PDFName.of('Resources'),
+    ctx.obj({ XObject: ctx.obj({ RedactylRaster: image.ref }) }),
+  );
 }
 
 // Rewrite every content stream that can show text, blanking accepted values in

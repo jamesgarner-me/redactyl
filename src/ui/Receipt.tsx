@@ -10,6 +10,8 @@ interface Props {
   // PDFs go through PdfVerifier (re-parse + re-detect) before reaching here, so
   // we can assert the output is provably clean. Text output has no such pass.
   verified?: boolean;
+  // Pages flattened to an image by the rasterise fallback (text not selectable).
+  rasterisedPages?: number[];
   onRedactAnother: () => void;
 }
 
@@ -24,13 +26,27 @@ function saveBlob(target: SaveTarget) {
   URL.revokeObjectURL(url);
 }
 
-export function Receipt({ outputName, blob, mapping, verified, onRedactAnother }: Props) {
+export function Receipt({
+  outputName,
+  blob,
+  mapping,
+  verified,
+  rasterisedPages,
+  onRedactAnother,
+}: Props) {
+  const flattened = rasterisedPages && rasterisedPages.length > 0;
   return (
     <div className="receipt">
       <h2 className="receipt-title">Complete</h2>
       {verified && (
         <p className="verified-badge" role="status">
           ✓ Verified — no detectable PII in the output
+        </p>
+      )}
+      {flattened && (
+        <p className="raster-note">
+          ✓ Re-verified after flattening page{rasterisedPages.length > 1 ? 's' : ''}{' '}
+          {rasterisedPages.join(', ')} — those pages are now images, so their text isn't selectable.
         </p>
       )}
       <div className="output-card">
