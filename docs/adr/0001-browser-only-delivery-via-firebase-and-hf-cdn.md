@@ -10,7 +10,7 @@ Redactyl is a browser-only tool whose promise is that no document content leaves
 
 ## Status note (2026-05-30)
 
-The app shell has been migrated to **Vercel** (`redactyl.vercel.app`) as a temporary preference — consolidating with other projects already on Vercel, not because of any Firebase limitation. The Firebase deployment at `redactyl.jamesgarner.me` remains live and the config (`firebase.json`, `.firebaserc`) is preserved; CI workflows are disabled (manual trigger only) so the setup is reversible. The COOP/COEP constraints and HuggingFace CDN model strategy in this ADR are unchanged — `vercel.json` replaces `firebase.json` for header configuration only.
+The app shell has been migrated to **Vercel** (`redactyl-app.vercel.app`) as a temporary preference — consolidating with other projects already on Vercel, not because of any Firebase limitation. The Firebase deployment at `redactyl.jamesgarner.me` remains live and the config (`firebase.json`, `.firebaserc`) is preserved; CI workflows are disabled (manual trigger only) so the setup is reversible. The COOP/COEP constraints and HuggingFace CDN model strategy in this ADR are unchanged — `vercel.json` replaces `firebase.json` for header configuration only.
 
 ## Consequences
 
