@@ -1,19 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createModelWorker } from './detection/detector';
 import { groupItems } from './domain/items';
-import {
-  formatLocator,
-  formatPageLocator,
-  itemLines,
-  makeLineIndex,
-  makePageIndex,
-} from './domain/locators';
 import type { Item, Span } from './domain/types';
-import { assignTokens } from './redaction/tokeniser';
-import { redact } from './redaction/textRedactor';
-import { buildMapping, mappingName } from './redaction/mappingExporter';
+import { createTextDocument } from './document/textDocument';
+import { createPdfDocument } from './document/pdfDocument';
+import type { Document } from './document/document';
 import { extractPdf, type GlyphBox, type PdfSafety } from './pdf/pdfExtractor';
-import { redactAndVerifyPdf } from './pdf/pdfRedactor';
 import { renderPageToPng } from './pdf/pdfRender';
 import { TopBar } from './ui/TopBar';
 import { FileDropZone } from './ui/FileDropZone';
@@ -31,7 +23,9 @@ import { isDemoEnabled } from './demo/flag';
 import { sampleReview } from './demo/sampleDocument';
 
 // What the document was extracted from. PDFs carry the per-glyph geometry and
-// original bytes needed to redact (blank + black box) and re-verify the output.
+// original bytes needed to redact (blank + black box) and re-verify the output,
+// plus the raw safety result the PdfDocument turns into a banner. (Folded into
+// the Document seam directly in the opener slice; encrypted never reaches here.)
 type ReviewBase =
   | { source: 'text'; filename: string; text: string }
   | {
@@ -40,9 +34,7 @@ type ReviewBase =
       text: string;
       glyphs: GlyphBox[];
       bytes: Uint8Array;
-      // Set for scanned/garbled PDFs: redaction is blocked and this is shown as
-      // a banner. Encrypted PDFs never reach review (blocking error instead).
-      warning?: string;
+      safety: Exclude<PdfSafety, { kind: 'encrypted' }> | null;
     };
 
 type Screen =
@@ -58,33 +50,6 @@ type Screen =
       rasterisedPages?: number[];
     };
 
-// `notes.txt` -> `notes.redacted.txt`; `report.pdf` -> `report.redacted.pdf`.
-function redactedName(filename: string): string {
-  const dot = filename.lastIndexOf('.');
-  if (dot === -1) return `${filename}.redacted`;
-  return `${filename.slice(0, dot)}.redacted${filename.slice(dot)}`;
-}
-
-// Banner copy for a non-fatal PDF safety issue (scanned/garbled). Both block
-// redaction and stress that the file is NOT sanitised.
-function safetyMessage(safety: Exclude<PdfSafety, { kind: 'encrypted' }>): string {
-  const pages = safety.pages.join(', ');
-  const plural = safety.pages.length > 1 ? 's' : '';
-  return safety.kind === 'scanned'
-    ? `Page${plural} ${pages} appear to be scans with no text layer. v1 doesn't OCR, so this file is NOT sanitised — don't paste it into an AI tool assuming it's clean.`
-    : `Page${plural} ${pages} produced unreadable text, so detection can't be trusted. This file is NOT sanitised.`;
-}
-
-// Source-specific review locator: page numbers for PDFs, line numbers for text.
-function makeLocator(review: ReviewBase): (item: Item) => string {
-  if (review.source === 'pdf') {
-    const pageAt = makePageIndex(review.glyphs);
-    return (item) => formatPageLocator(itemLines(item, pageAt));
-  }
-  const lineAt = makeLineIndex(review.text);
-  return (item) => formatLocator(itemLines(item, lineAt));
-}
-
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'dropzone' });
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -95,6 +60,24 @@ export default function App() {
   const runIdRef = useRef(0);
 
   useEffect(() => () => modelWorker.terminate(), [modelWorker]);
+
+  // Deps the PdfDocument captures to re-verify its own output. `detect` is
+  // regex-aware so verification matches the current setting.
+  const pdfDeps = {
+    detect: (t: string) => modelWorker.detector.detect(t, { regex: regexEnabled }),
+    renderPage: renderPageToPng,
+  };
+
+  // The opened Document for a review screen — the one place text vs PDF is
+  // chosen. Everything downstream (locate, redact, capabilities) reads off it.
+  function reviewDocument(s: Extract<Screen, { name: 'review' }>): Document {
+    return s.source === 'pdf'
+      ? createPdfDocument(
+          { filename: s.filename, text: s.text, glyphs: s.glyphs, bytes: s.bytes, safety: s.safety },
+          pdfDeps,
+        )
+      : createTextDocument(s.filename, s.text);
+  }
 
   // Detect against the already-extracted text, then build the review screen,
   // carrying the source-specific context (PDF glyphs + bytes) through unchanged.
@@ -124,8 +107,10 @@ export default function App() {
           });
           return;
         }
-        const warning = safety ? safetyMessage(safety) : undefined;
-        await analyze({ source: 'pdf', filename: file.name, text, glyphs, bytes, warning }, regexEnabled);
+        await analyze(
+          { source: 'pdf', filename: file.name, text, glyphs, bytes, safety: safety ?? null },
+          regexEnabled,
+        );
       } else {
         const text = await file.text();
         await analyze({ source: 'text', filename: file.name, text }, regexEnabled);
@@ -152,73 +137,33 @@ export default function App() {
             text: screen.text,
             glyphs: screen.glyphs,
             bytes: screen.bytes,
-            warning: screen.warning,
+            safety: screen.safety,
           }
         : { source: 'text', filename: screen.filename, text: screen.text };
     void analyze(base, next);
   }
 
+  // Redaction is now uniform across sources: build the Document and ask it to
+  // redact. The fail-closed cases (PDF leak, file flagged unsafe) come back as
+  // an `ok: false` outcome and route to the dropzone error.
   async function handleRedact(acceptedSpans: Span[], saveMapping: boolean) {
     if (screen.name !== 'review') return;
-    if (screen.source === 'pdf') return redactPdfFile(screen, acceptedSpans);
-
-    const { filename, text } = screen;
-    setScreen({ name: 'redacting', filename });
-    // Let the redacting screen paint before the (synchronous) rewrite.
+    const doc = reviewDocument(screen);
+    setScreen({ name: 'redacting', filename: screen.filename });
+    // Let the redacting screen paint before the (synchronous) text rewrite.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const tokens = assignTokens(acceptedSpans);
-    const output = redact(text, acceptedSpans, tokens);
-    const blob = new Blob([output], { type: 'text/plain' });
-    const mapping = saveMapping
-      ? {
-          name: mappingName(filename),
-          blob: new Blob([JSON.stringify(buildMapping(tokens.entries, filename), null, 2)], {
-            type: 'application/json',
-          }),
-        }
-      : undefined;
-    setScreen({ name: 'receipt', outputName: redactedName(filename), blob, mapping });
-  }
-
-  // True PDF redaction: blank the glyphs + draw black boxes, then re-parse and
-  // re-detect. The guarantee is fail-closed — a verification leak blocks the
-  // download rather than shipping a still-leaky file (rasterise fallback is a
-  // later slice).
-  async function redactPdfFile(
-    review: Extract<ReviewBase, { source: 'pdf' }>,
-    acceptedSpans: Span[],
-  ) {
-    const { filename, bytes, glyphs, warning } = review;
-    // Defence in depth: the UI disables Redact when a safety warning is present,
-    // but never produce output for a file we've flagged as unsafe.
-    if (warning) return;
-    setScreen({ name: 'redacting', filename });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    try {
-      const outcome = await redactAndVerifyPdf(bytes, acceptedSpans, glyphs, {
-        detect: (t) => modelWorker.detector.detect(t, { regex: regexEnabled }),
-        renderPage: renderPageToPng,
-      });
-      if (!outcome.ok) {
-        // A leak survived even the rasterise fallback — fail closed.
-        setScreen({
-          name: 'dropzone',
-          error: `Redaction couldn't be verified even after flattening affected pages. No file was produced.`,
-        });
-        return;
-      }
-      // Uint8Array.from yields an ArrayBuffer-backed copy (a valid BlobPart);
-      // pdf-lib's save() return is typed over the broader ArrayBufferLike.
-      const blob = new Blob([Uint8Array.from(outcome.bytes)], { type: 'application/pdf' });
-      setScreen({
-        name: 'receipt',
-        outputName: redactedName(filename),
-        blob,
-        rasterisedPages: outcome.rasterisedPages,
-      });
-    } catch {
-      setScreen({ name: 'dropzone', error: 'Could not redact this PDF. No file was produced.' });
+    const outcome = await doc.redact(acceptedSpans, { saveMapping });
+    if (!outcome.ok) {
+      setScreen({ name: 'dropzone', error: outcome.message });
+      return;
     }
+    setScreen({
+      name: 'receipt',
+      outputName: outcome.outputName,
+      blob: outcome.blob,
+      mapping: outcome.mapping,
+      rasterisedPages: outcome.rasterisedPages,
+    });
   }
 
   // Demo mode (?demo): replay the e2e flow from an embedded fixture so the UI
@@ -270,7 +215,6 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         regexEnabled={regexEnabled}
         onToggleRegex={handleToggleRegex}
-        // Recovery actions only make sense once the model is cached.
         onRedownload={
           modelReady
             ? () => {
@@ -296,17 +240,12 @@ export default function App() {
       case 'dropzone':
         return (
           <>
-            {/* The pre-ready landing's bordered light-blue card chrome now wraps
-                the intro + the dashed drop target, so the ready screen mirrors
-                the homepage rather than dropping onto a bare drop target. */}
-            <div className="dropzone-panel">
-              <DropzoneIntro />
-              <FileDropZone
-                onFile={handleFile}
-                onReject={(error) => setScreen({ name: 'dropzone', error })}
-                error={screen.error}
-              />
-            </div>
+            <DropzoneIntro />
+            <FileDropZone
+              onFile={handleFile}
+              onReject={(error) => setScreen({ name: 'dropzone', error })}
+              error={screen.error}
+            />
             {isDemoEnabled() && (
               <button type="button" className="demo-button" onClick={loadSample}>
                 ▶ Load sample document (demo)
@@ -328,19 +267,21 @@ export default function App() {
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />
         );
-      case 'review':
+      case 'review': {
+        const doc = reviewDocument(screen);
         return (
           <ReviewScreen
             key={screen.id}
             filename={screen.filename}
             items={screen.items}
-            locate={makeLocator(screen)}
-            allowMapping={screen.source === 'text'}
-            safetyWarning={screen.source === 'pdf' ? screen.warning : undefined}
+            locate={doc.locate}
+            allowMapping={doc.allowMapping}
+            safetyWarning={doc.safetyWarning}
             onRedact={handleRedact}
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />
         );
+      }
     }
   }
 }

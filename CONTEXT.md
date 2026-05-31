@@ -4,6 +4,11 @@ A browser-only tool that finds personal data in PDFs and text files and produces
 
 ## Language
 
+**Document**:
+The opened file the user is redacting — its extracted text together with whatever the source format needs to locate **Occurrences** and produce a sanitised copy. **Detect** runs on a Document's text; **Redact** produces a new Document of the same kind.
+_Kinds_: **text** (`.txt` / `.md`) and **PDF**. The kind decides how Occurrences are located (line vs page) and whether a **Mapping** sidecar is offered (text only).
+_Avoid_: file (the raw upload before extraction), input.
+
 **Detect**:
 Identify ranges of text that might be personal data, via a regex layer and an NER layer.
 
