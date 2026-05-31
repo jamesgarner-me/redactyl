@@ -8,7 +8,7 @@ import { type Document, type RedactionOutcome, redactedName } from './document';
 // rewritten text, and rasterise a page that still leaks. Injected once (at
 // opener construction) so open()/redact() stay dep-free at the call site.
 export interface PdfDocumentDeps {
-  detect: (text: string) => Span[] | Promise<Span[]>;
+  detect: (text: string) => Item[] | Promise<Item[]>;
   renderPage: RenderPageToPng;
 }
 

@@ -7,10 +7,12 @@ import { redactPdf, redactAndVerifyPdf } from './pdfRedactor';
 import { verifyPdf } from './pdfVerifier';
 import { buildPdf, buildXObjectPdf, buildKerningSplitPdf, PIXEL_PNG } from './pdfTestUtils';
 import { runDetectors } from '../detection/patterns';
-import { groupItems } from '../domain/items';
+import { spansToItems } from '../domain/items';
 
-// Regex-only detector — the same surface the worker merges, without the model.
-const detect = (text: string) => runDetectors(text);
+// Regex-only detection surface — the same Spans → Items reduction the worker
+// runs, without the model. `runDetectors` is used directly where raw Spans are
+// still needed (the redactPdf input).
+const detect = (text: string) => spansToItems(runDetectors(text));
 
 const hasPdftotext = (() => {
   try {
@@ -25,8 +27,8 @@ describe('redactPdf + verifyPdf (integration)', () => {
   it('removes accepted PII from the content stream and verifies no leaks', async () => {
     const bytes = await buildPdf([['Reach alice@example.com or ssn 123-45-6789 anytime']]);
     const { text, glyphs } = await extractPdf(bytes);
-    const spans = detect(text);
-    const items = groupItems(spans);
+    const spans = runDetectors(text);
+    const items = spansToItems(spans);
 
     expect(items.map((i) => i.value).sort()).toEqual(['123-45-6789', 'alice@example.com']);
 
@@ -49,9 +51,9 @@ describe('redactPdf + verifyPdf (integration)', () => {
     const { text, glyphs } = await extractPdf(bytes);
     expect(text).toContain('alice@example.com');
 
-    const redacted = await redactPdf(bytes, detect(text), glyphs);
+    const redacted = await redactPdf(bytes, runDetectors(text), glyphs);
 
-    const items = groupItems(detect(text));
+    const items = detect(text);
     expect(await verifyPdf(redacted, items, detect)).toEqual({ ok: true, leaks: [], leakPages: [] });
 
     // The email is gone, but the XObject still renders — its surrounding text
@@ -65,7 +67,7 @@ describe('redactPdf + verifyPdf (integration)', () => {
   it.skipIf(!hasPdftotext)('pdftotext on the output produces no accepted PII strings', async () => {
     const bytes = await buildPdf([['Reach alice@example.com or ssn 123-45-6789 anytime']]);
     const { text, glyphs } = await extractPdf(bytes);
-    const redacted = await redactPdf(bytes, detect(text), glyphs);
+    const redacted = await redactPdf(bytes, runDetectors(text), glyphs);
 
     // Repo-local temp (not the system /tmp), auto-cleaned below.
     const dir = mkdtempSync(join(process.cwd(), '.scratch', 'pdf-'));
@@ -93,10 +95,10 @@ describe('redactAndVerifyPdf — rasterise fallback', () => {
     // pdfjs reconstructs the value from the split TJ...
     expect(text).toContain('alice@example.com');
     // ...but the per-operand rewrite alone can't remove it (it leaks).
-    const rewriteOnly = await redactPdf(bytes, detect(text), glyphs);
-    expect((await verifyPdf(rewriteOnly, groupItems(detect(text)), detect)).ok).toBe(false);
+    const rewriteOnly = await redactPdf(bytes, runDetectors(text), glyphs);
+    expect((await verifyPdf(rewriteOnly, detect(text), detect)).ok).toBe(false);
 
-    const outcome = await redactAndVerifyPdf(bytes, detect(text), glyphs, { detect, renderPage });
+    const outcome = await redactAndVerifyPdf(bytes, runDetectors(text), glyphs, { detect, renderPage });
 
     expect(outcome.ok).toBe(true);
     expect(outcome.rasterisedPages).toEqual([1]);
@@ -108,7 +110,7 @@ describe('redactAndVerifyPdf — rasterise fallback', () => {
     const bytes = await buildPdf([['Plain alice@example.com here']]);
     const { text, glyphs } = await extractPdf(bytes);
 
-    const outcome = await redactAndVerifyPdf(bytes, detect(text), glyphs, { detect, renderPage });
+    const outcome = await redactAndVerifyPdf(bytes, runDetectors(text), glyphs, { detect, renderPage });
 
     expect(outcome.ok).toBe(true);
     expect(outcome.rasterisedPages).toEqual([]);
@@ -117,11 +119,11 @@ describe('redactAndVerifyPdf — rasterise fallback', () => {
   it('fails closed when a value still leaks after rasterising', async () => {
     const bytes = await buildKerningSplitPdf('alice@example.com');
     const { text, glyphs } = await extractPdf(bytes);
-    const spans = detect(text);
+    const spans = runDetectors(text);
 
     // A detector that always "finds" the value, even in the flattened output —
     // simulating a leak rasterisation can't clear. The pipeline must refuse.
-    const alwaysLeaks = () => spans;
+    const alwaysLeaks = () => spansToItems(spans);
 
     const outcome = await redactAndVerifyPdf(bytes, spans, glyphs, {
       detect: alwaysLeaks,

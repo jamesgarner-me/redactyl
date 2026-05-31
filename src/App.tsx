@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createModelWorker } from './detection/detector';
-import { groupItems } from './domain/items';
 import type { Item, Span } from './domain/types';
 import { createTextDocument } from './document/textDocument';
 import { createDocumentOpener } from './document/opener';
@@ -63,15 +62,16 @@ export default function App() {
   );
 
   // Detect against the opened Document's text, then enter review carrying the
-  // Document so locate/redact/capabilities are read straight off it.
+  // Document so locate/redact/capabilities are read straight off it. Detection
+  // returns user-facing Items directly — no grouping step here.
   async function analyze(doc: Document) {
     setScreen({ name: 'analyzing', filename: doc.filename });
-    const spans = await modelWorker.detector.detect(doc.text, {
+    const items = await modelWorker.detector.detect(doc.text, {
       regex: regexEnabledRef.current,
       onProgress: (processed, total) =>
         setScreen((s) => (s.name === 'analyzing' ? { ...s, progress: { processed, total } } : s)),
     });
-    setScreen({ name: 'review', id: ++runIdRef.current, document: doc, items: groupItems(spans) });
+    setScreen({ name: 'review', id: ++runIdRef.current, document: doc, items });
   }
 
   async function handleFile(file: File) {
@@ -187,12 +187,17 @@ export default function App() {
       case 'dropzone':
         return (
           <>
-            <DropzoneIntro />
-            <FileDropZone
-              onFile={handleFile}
-              onReject={(error) => setScreen({ name: 'dropzone', error })}
-              error={screen.error}
-            />
+            {/* The pre-ready landing's bordered light-blue card chrome wraps the
+                intro + the dashed drop target, so the ready screen mirrors the
+                homepage rather than dropping onto a bare drop target. */}
+            <div className="dropzone-panel">
+              <DropzoneIntro />
+              <FileDropZone
+                onFile={handleFile}
+                onReject={(error) => setScreen({ name: 'dropzone', error })}
+                error={screen.error}
+              />
+            </div>
             {isDemoEnabled() && (
               <button type="button" className="demo-button" onClick={loadSample}>
                 ▶ Load sample document (demo)

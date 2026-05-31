@@ -8,7 +8,7 @@ import { redactAndVerifyPdf } from '../../src/pdf/pdfRedactor';
 import { verifyPdf } from '../../src/pdf/pdfVerifier';
 import { PIXEL_PNG } from '../../src/pdf/pdfTestUtils';
 import { runDetectors } from '../../src/detection/patterns';
-import { groupItems } from '../../src/domain/items';
+import { spansToItems } from '../../src/domain/items';
 import { CORPUS, type CorpusFixture } from '../fixtures/corpus';
 
 // Issue 12 — real-world PDF corpus regression across the slice 8–10 pipeline
@@ -25,7 +25,9 @@ import { CORPUS, type CorpusFixture } from '../fixtures/corpus';
 // with a 1×1 PNG — real rendering needs a canvas — because what the regression
 // asserts is that flattening *drops the text layer*, not the rendered pixels.
 
-const detect = (text: string) => runDetectors(text);
+// The verification surface returns Items (the Spans → Items reduction); raw
+// `runDetectors` is used directly where the redactor needs flat accepted Spans.
+const detect = (text: string) => spansToItems(runDetectors(text));
 const renderPage = async () => PIXEL_PNG;
 
 const hasPdftotext = (() => {
@@ -58,8 +60,8 @@ describe('PDF corpus regression (slice 8–10)', () => {
         const { text, glyphs, safety } = await extractPdf(bytes);
         expect(safety).toBeNull();
 
-        const spans = detect(text);
-        const items = groupItems(spans);
+        const spans = runDetectors(text);
+        const items = spansToItems(spans);
         const outcome = await redactAndVerifyPdf(bytes, spans, glyphs, { detect, renderPage });
 
         // (1) fail-closed verification passed

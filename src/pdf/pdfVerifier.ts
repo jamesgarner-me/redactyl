@@ -8,7 +8,7 @@
 // `detect` is injected so production passes the worker detector while tests pass
 // a regex-only detector — no 770 MB model needed to verify.
 
-import type { Item, Span } from '../domain/types';
+import type { Item } from '../domain/types';
 import { extractPdf } from './pdfExtractor';
 import { makePageIndex } from '../domain/locators';
 
@@ -23,16 +23,19 @@ export interface VerificationResult {
 export async function verifyPdf(
   bytes: ArrayBuffer | Uint8Array,
   expectedAbsent: Item[],
-  detect: (text: string) => Span[] | Promise<Span[]>,
+  detect: (text: string) => Item[] | Promise<Item[]>,
 ): Promise<VerificationResult> {
   const { text, glyphs } = await extractPdf(bytes);
-  const spans = await detect(text);
+  const found = await detect(text);
+  const foundValues = new Set(found.map((i) => i.value));
   const leakedValues = new Set(expectedAbsent.map((i) => i.value));
-  const leaks = expectedAbsent.filter((item) => spans.some((s) => s.value === item.value));
+  const leaks = expectedAbsent.filter((item) => foundValues.has(item.value));
 
   const pageAt = makePageIndex(glyphs);
   const pages = new Set<number>();
-  for (const span of spans) if (leakedValues.has(span.value)) pages.add(pageAt(span.start));
+  for (const item of found)
+    if (leakedValues.has(item.value))
+      for (const span of item.spans) pages.add(pageAt(span.start));
 
   return {
     ok: leaks.length === 0,

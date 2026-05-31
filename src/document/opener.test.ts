@@ -3,9 +3,10 @@ import { createDocumentOpener } from './opener';
 import type { PdfDocumentDeps } from './pdfDocument';
 import { buildPdf, buildEncryptedPdf, buildScannedPdf } from '../pdf/pdfTestUtils';
 import { runDetectors } from '../detection/patterns';
+import { spansToItems } from '../domain/items';
 
 const deps: PdfDocumentDeps = {
-  detect: (t) => runDetectors(t),
+  detect: (t) => spansToItems(runDetectors(t)),
   renderPage: async () => new Uint8Array(),
 };
 

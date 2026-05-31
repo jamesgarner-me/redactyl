@@ -25,8 +25,8 @@ import {
   rgb,
   type PDFPage,
 } from 'pdf-lib';
-import type { Span } from '../domain/types';
-import { groupItems } from '../domain/items';
+import type { Item, Span } from '../domain/types';
+import { spansToItems } from '../domain/items';
 import type { GlyphBox } from './pdfExtractor';
 import { verifyPdf } from './pdfVerifier';
 
@@ -68,11 +68,11 @@ export async function redactAndVerifyPdf(
   acceptedSpans: Span[],
   glyphs: GlyphBox[],
   deps: {
-    detect: (text: string) => Span[] | Promise<Span[]>;
+    detect: (text: string) => Item[] | Promise<Item[]>;
     renderPage: RenderPageToPng;
   },
 ): Promise<RedactionOutcome> {
-  const expectedAbsent = groupItems(acceptedSpans);
+  const expectedAbsent = spansToItems(acceptedSpans);
   const values = [...new Set(acceptedSpans.map((s) => s.value))].filter(Boolean);
 
   const doc = await PDFDocument.load(source);

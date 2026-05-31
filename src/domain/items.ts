@@ -8,8 +8,8 @@ export function itemKey(category: Category, value: string): string {
 }
 
 // Collapse Spans into Items, preserving first-appearance order. Assumes spans
-// are already sorted by `start` (runDetectors guarantees this).
-export function groupItems(spans: Span[]): Item[] {
+// are already sorted by `start` (runDetectors / mergeSpans guarantee this).
+export function spansToItems(spans: Span[]): Item[] {
   const byKey = new Map<string, Item>();
   for (const span of spans) {
     const key = itemKey(span.category, span.value);

@@ -1,4 +1,4 @@
-import { groupItems } from '../domain/items';
+import { spansToItems } from '../domain/items';
 import type { Category, Item, Span } from '../domain/types';
 
 // An embedded fixture covering every Category and display Bucket, with repeated
@@ -64,5 +64,5 @@ function buildSpans(text: string, flags: typeof FLAGS): Span[] {
 }
 
 export function sampleReview(): { filename: string; text: string; items: Item[] } {
-  return { filename: FILENAME, text: TEXT, items: groupItems(buildSpans(TEXT, FLAGS)) };
+  return { filename: FILENAME, text: TEXT, items: spansToItems(buildSpans(TEXT, FLAGS)) };
 }

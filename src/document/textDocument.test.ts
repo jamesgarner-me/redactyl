@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createTextDocument } from './textDocument';
-import { groupItems } from '../domain/items';
+import { spansToItems } from '../domain/items';
 import type { Span } from '../domain/types';
 
 // Build EMAIL spans for every verbatim occurrence of `value`, the way Detect
@@ -25,7 +25,7 @@ describe('TextDocument', () => {
 
   it('locates an Item by the lines its Occurrences fall on', () => {
     const doc = createTextDocument('notes.txt', TEXT);
-    const [item] = groupItems(SPANS);
+    const [item] = spansToItems(SPANS);
     expect(doc.locate(item)).toBe('ln 1, 2');
   });
 

@@ -3,10 +3,11 @@ import { createPdfDocument, type PdfDocumentDeps } from './pdfDocument';
 import { extractPdf } from '../pdf/pdfExtractor';
 import { buildPdf, buildKerningSplitPdf, PIXEL_PNG } from '../pdf/pdfTestUtils';
 import { runDetectors } from '../detection/patterns';
-import { groupItems } from '../domain/items';
+import { spansToItems } from '../domain/items';
 
-// Regex-only detector — the same surface the worker merges, without the model.
-const detect = (text: string) => runDetectors(text);
+// Regex-only detection surface — the Spans → Items reduction the worker runs,
+// without the model.
+const detect = (text: string) => spansToItems(runDetectors(text));
 
 // Real deps: pattern detection re-verifies, and a stub renderer stands in for
 // the canvas-backed rasteriser (clean text PDFs never reach it).
@@ -34,7 +35,7 @@ describe('PdfDocument', () => {
       { filename: 'r.pdf', text: extracted, glyphs, bytes, safety: null },
       deps,
     );
-    const [item] = groupItems(detect(extracted));
+    const [item] = detect(extracted);
     expect(doc.locate(item)).toBe('p. 1');
   });
 
@@ -44,7 +45,7 @@ describe('PdfDocument', () => {
       { filename: 'r.pdf', text: extracted, glyphs, bytes, safety: null },
       deps,
     );
-    const accepted = groupItems(detect(extracted)).flatMap((i) => i.spans);
+    const accepted = detect(extracted).flatMap((i) => i.spans);
     const outcome = await doc.redact(accepted, { saveMapping: false });
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
@@ -77,8 +78,11 @@ describe('PdfDocument', () => {
     // simulates a leak even rasterisation can't clear → fail closed.
     const bytes = await buildKerningSplitPdf('alice@example.com');
     const { text, glyphs } = await extractPdf(bytes);
-    const spans = detect(text);
-    const alwaysLeaks: PdfDocumentDeps = { detect: () => spans, renderPage: async () => PIXEL_PNG };
+    const spans = runDetectors(text);
+    const alwaysLeaks: PdfDocumentDeps = {
+      detect: () => spansToItems(spans),
+      renderPage: async () => PIXEL_PNG,
+    };
     const doc = createPdfDocument(
       { filename: 'r.pdf', text, glyphs, bytes, safety: null },
       alwaysLeaks,

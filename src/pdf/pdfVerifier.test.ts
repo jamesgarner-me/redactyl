@@ -3,17 +3,18 @@ import { extractPdf } from './pdfExtractor';
 import { verifyPdf } from './pdfVerifier';
 import { buildPdf } from './pdfTestUtils';
 import { runDetectors } from '../detection/patterns';
-import { groupItems } from '../domain/items';
+import { spansToItems } from '../domain/items';
 import type { Item } from '../domain/types';
 
-const detect = (text: string) => runDetectors(text);
+// Regex-only detection surface: the Spans → Items reduction without the model.
+const detect = (text: string) => spansToItems(runDetectors(text));
 
 describe('verifyPdf', () => {
   it('reports a leak when an accepted value still appears in the output', async () => {
     // Unredacted bytes: the email is still present, so verification must fail.
     const bytes = await buildPdf([['Contact alice@example.com today']]);
     const { text } = await extractPdf(bytes);
-    const items = groupItems(detect(text));
+    const items = detect(text);
 
     const result = await verifyPdf(bytes, items, detect);
     expect(result.ok).toBe(false);

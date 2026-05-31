@@ -2,6 +2,7 @@ import { mergeSpans } from './merge';
 import { labelledFieldSpans, regexScoredSpans, type CustomPattern } from './patterns';
 import { clearNerPipeline, detectNer, loadNerPipeline } from './ner';
 import { propagateOccurrences } from './propagate';
+import { spansToItems } from '../domain/items';
 
 // The worker owns the model: the gate's download/probe/clear and the detector's
 // inference all run here against one pipeline. Messages are multiplexed by type.
@@ -59,7 +60,11 @@ self.onmessage = async (event: MessageEvent<Incoming>) => {
       // prose/heading occurrences the model misses non-deterministically.
       const detected = [...regex, ...ner];
       const propagated = propagateOccurrences(msg.text, detected);
-      post({ type: 'spans', id: msg.id, spans: mergeSpans([...detected, ...propagated]) });
+      // The full Spans → Items reduction reads top-to-bottom here: merge →
+      // (propagate, above) → group, so detection delivers the user-facing Items
+      // directly rather than leaving the grouping to a caller.
+      const merged = mergeSpans([...detected, ...propagated]);
+      post({ type: 'items', id: msg.id, items: spansToItems(merged) });
       return;
     }
   }

@@ -1,10 +1,10 @@
-import type { Span } from '../domain/types';
+import type { Item } from '../domain/types';
 import type { ModelClient, ModelProgress } from '../model/modelGate';
 import type { CustomPattern } from './patterns';
 
 // Worker → main messages.
 type Outgoing =
-  | { type: 'spans'; id: number; spans: Span[] }
+  | { type: 'items'; id: number; items: Item[] }
   | { type: 'detect-progress'; id: number; processed: number; total: number }
   | { type: 'progress'; file: string; loaded: number; total: number }
   | { type: 'ready' }
@@ -21,7 +21,7 @@ export interface Detector {
       regex?: boolean;
       onProgress?: (processed: number, total: number) => void;
     },
-  ): Promise<Span[]>;
+  ): Promise<Item[]>;
 }
 
 // One worker owns the model, shared by the gate client (download/probe/clear)
@@ -47,7 +47,7 @@ function cached(): boolean {
 export function createModelWorker(): ModelWorker {
   let worker = spawn();
   let nextId = 0;
-  const pending = new Map<number, (spans: Span[]) => void>();
+  const pending = new Map<number, (items: Item[]) => void>();
   const progressCbs = new Map<number, (processed: number, total: number) => void>();
   let activeLoad: {
     onProgress: (p: ModelProgress) => void;
@@ -64,12 +64,12 @@ export function createModelWorker(): ModelWorker {
     w.onmessage = (event: MessageEvent<Outgoing>) => {
       const msg = event.data;
       switch (msg.type) {
-        case 'spans': {
+        case 'items': {
           const resolve = pending.get(msg.id);
           if (resolve) {
             pending.delete(msg.id);
             progressCbs.delete(msg.id);
-            resolve(msg.spans);
+            resolve(msg.items);
           }
           break;
         }
@@ -193,7 +193,7 @@ export function createModelWorker(): ModelWorker {
   const detector: Detector = {
     detect(text, opts) {
       const id = nextId++;
-      return new Promise<Span[]>((resolve) => {
+      return new Promise<Item[]>((resolve) => {
         pending.set(id, resolve);
         if (opts?.onProgress) progressCbs.set(id, opts.onProgress);
         // RegExp is structured-cloneable, so customPatterns cross the boundary.
