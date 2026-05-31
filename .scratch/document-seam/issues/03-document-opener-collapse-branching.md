@@ -1,6 +1,6 @@
 # DocumentOpener — collapse handleFile and delete the source branching
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 

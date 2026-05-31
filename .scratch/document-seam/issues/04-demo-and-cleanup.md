@@ -1,6 +1,8 @@
 # Demo mode through the Document seam + dead-code cleanup
 
-Status: ready-for-agent
+Status: completed
+
+> Note: satisfied as part of issue 03's App rewrite — demo mode already builds a TextDocument and travels the unified review path, and no `source`-era dead code remains. No separate change needed.
 
 ## Parent
 
