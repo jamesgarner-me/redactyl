@@ -7,3 +7,6 @@ dist-ssr
 
 # Service-account keys / credentials — never commit
 *-key.json
+
+# E2E harness artifacts (downloaded output, Playwright report/trace)
+test/e2e/artifacts

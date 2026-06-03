@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:e2e": "bash test/e2e/run.sh"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.49.1",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.0.0",

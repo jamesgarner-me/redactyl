@@ -1,0 +1,9 @@
+{
+  "source": "letter.md",
+  "note": "Ground truth for the text Sample. PERSON and ADDRESS are NER-only (no regex equivalent) — the recall legs. EMAIL is regex+NER. One entity per category, so tokens are all _1.",
+  "entities": [
+    { "value": "Marcus Webb", "category": "PERSON", "expectDetect": true, "token": "<PERSON_1>" },
+    { "value": "42 Wallaby Way, Sydney NSW 2000", "category": "ADDRESS", "expectDetect": true, "token": "<ADDRESS_1>" },
+    { "value": "marcus.webb@example.com", "category": "EMAIL", "expectDetect": true, "token": "<EMAIL_1>" }
+  ]
+}
