@@ -9,7 +9,7 @@ const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 // Chromium for a HARDWARE Vulkan WebGPU adapter (q4f16 needs shader-f16, which
 // software WebGPU lacks). These are the candidate flags — the exact verified set
 // is finalised by the pod WebGPU spike (issue 05, .scratch/e2e-verification/).
-const gpuArgs = process.env.E2E_GPU
+const vulkanArgs = process.env.E2E_GPU
   ? [
       '--use-angle=vulkan',
       '--enable-features=Vulkan',
@@ -17,6 +17,23 @@ const gpuArgs = process.env.E2E_GPU
       '--ignore-gpu-blocklist',
     ]
   : [];
+
+// Local dev convenience: set E2E_GPU_MAC=1 to run this gate natively on an Apple
+// Silicon Mac (Docker on macOS can't pass the GPU into the Linux container, so
+// the committed run.sh harness only gets software WebGPU / CPU EP). These ask
+// headless Chromium for a HARDWARE Metal-backed WebGPU adapter so q4f16 can load.
+// NOT used by CI/RunPod — this is a host-only escape hatch.
+const metalArgs = process.env.E2E_GPU_MAC
+  ? [
+      '--use-gl=angle',
+      '--use-angle=metal',
+      '--enable-unsafe-webgpu',
+      '--enable-gpu',
+      '--ignore-gpu-blocklist',
+    ]
+  : [];
+
+const gpuArgs = [...vulkanArgs, ...metalArgs];
 
 export default defineConfig({
   testDir: here('.'),
