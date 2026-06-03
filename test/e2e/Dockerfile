@@ -2,7 +2,7 @@
 # headers), and drives the real UI with Playwright. Default cold — the model is
 # downloaded from the HF CDN inside the container on every run (ADR 0003).
 # Built/run via `pnpm test:e2e`. Context is the repo root.
-FROM mcr.microsoft.com/playwright:v1.49.1-noble
+FROM mcr.microsoft.com/playwright:v1.60.0-noble
 
 # The image's bundled corepack (Node 22.12.0) has stale signing keys and fails
 # the pnpm signature check — install pnpm directly instead. (Spike finding.)
