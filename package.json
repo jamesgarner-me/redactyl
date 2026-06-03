@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "test:e2e": "bash test/e2e/run.sh"
+    "test:e2e": "bash test/e2e/run.sh",
+    "test:e2e:local": "bash test/e2e/run.sh --local"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

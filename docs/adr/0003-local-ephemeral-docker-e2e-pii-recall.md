@@ -38,3 +38,27 @@ on the pod obtains a **hardware WebGPU adapter advertising `shader-f16`** — th
 needs the NVIDIA driver + a Vulkan ICD + nvidia-container-toolkit + the right
 Chromium Vulkan flags, *not merely a CUDA base image* (transformers.js uses the
 browser's WebGPU, not CUDA). See `.scratch/e2e-verification/issues/`.
+
+## Addendum (2026-06-03): `E2E_GPU_MAC` — native macOS dev escape hatch
+
+RunPod (above) remains the **canonical, CI** home for this gate — that is the
+ultimate target and nothing here changes it. But the WebGPU constraint also blocks
+the obvious local check on a Mac dev box: Docker Desktop on macOS doesn't pass the
+host GPU into the Linux container, so the Docker path falls back to the CPU/WASM
+provider and q4f16 fails to load — the same failure as a GPU-less Linux host, for a
+different reason (no passthrough rather than no GPU).
+
+The Mac itself *does* have a capable GPU (Metal) — it's only unreachable from
+inside the container. So we added a **host-native** path that bypasses Docker:
+`pnpm test:e2e:local` (`run.sh --local`) runs Playwright directly against the host
+Chromium with **`E2E_GPU_MAC=1`**. That env gate, in `playwright.config.mjs`, adds
+the macOS WebGPU flags (`--use-angle=metal`, `--use-gl=angle`,
+`--enable-unsafe-webgpu`, `--enable-gpu`, `--ignore-gpu-blocklist`), and headless
+Chromium then acquires a hardware Metal-backed WebGPU adapter with `shader-f16`.
+Verified green on Apple Silicon: the real q4f16/WebGPU path loads, NER produces
+spans, and the three-legged oracle passes.
+
+Scope: **dev convenience, not a CI path.** It is parallel to — and independent of —
+the Linux `E2E_GPU` (Vulkan) flags the RunPod runner sets; the two gates don't
+interact. It lets a developer exercise the real model path on a Mac without
+standing up a GPU pod, but the authoritative gate is still the RunPod container.

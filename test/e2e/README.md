@@ -67,9 +67,34 @@ for artifacts. Nothing persists; rerun = clean room. The first slice runs
 
 ## Running it
 
+Two paths, same spec and three-legged oracle:
+
+| Command | Path | When |
+| ------- | ---- | ---- |
+| `pnpm test:e2e` | **Docker** (default/canonical) | CI and the **RunPod GPU container** — the ultimate target |
+| `pnpm test:e2e:local` | **native, macOS** (`run.sh --local`) | Apple Silicon dev box, no Docker |
+
 `pnpm test:e2e` builds `Dockerfile` and runs the spec; the container exit code is
-the gate. **It requires a GPU host** (see Status). Artifacts (downloaded output,
-Playwright report/trace) are copied to `test/e2e/artifacts/` afterwards.
+the gate. Artifacts (downloaded output, Playwright report/trace) are copied to
+`test/e2e/artifacts/` afterwards. **It requires a GPU host** (see Status), which on
+Linux/RunPod means an injected Vulkan ICD (the `E2E_GPU=1` flag set by the runner
+workflow).
+
+### Local macOS run (`E2E_GPU_MAC`)
+
+Docker Desktop on macOS can't pass the host GPU into a Linux container, so the
+Docker path falls back to the CPU/WASM provider on a Mac and q4f16 won't load.
+`pnpm test:e2e:local` skips Docker and runs Playwright **natively** against the
+host's Chromium, setting `E2E_GPU_MAC=1`. That gate (in `playwright.config.mjs`)
+adds the macOS WebGPU flags — `--use-angle=metal`, `--use-gl=angle`,
+`--enable-unsafe-webgpu`, `--enable-gpu`, `--ignore-gpu-blocklist` — so headless
+Chromium acquires a **hardware Metal-backed WebGPU adapter** advertising
+`shader-f16`, and the real q4f16 path runs. Verified green on Apple Silicon (model
+loads on WebGPU, NER spans produced, oracle passes).
+
+This is a **dev convenience only** — it does not change CI/RunPod, which always use
+the Docker path and the Linux `E2E_GPU` (Vulkan) flags. It's a way to exercise the
+real model path on a Mac without a GPU pod.
 
 ## Status
 
