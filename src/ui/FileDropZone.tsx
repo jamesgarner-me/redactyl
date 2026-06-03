@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 
-const ACCEPTED = ['.txt', '.md', '.pdf'];
+const ACCEPTED = ['.pdf', '.txt', '.md'];
 
 function extensionOf(name: string): string {
   const dot = name.lastIndexOf('.');
