@@ -56,9 +56,19 @@ export function ModelGate({ state, onDownload, onRetry, onCancel }: Props) {
     return (
       <div className="model-card">
         <p className="model-promise">
-          <strong>Browser not supported.</strong> Redactyl needs cross-origin isolation and{' '}
-          <code>SharedArrayBuffer</code> to run the detection model in your browser. Try a current
-          version of Chrome, Firefox, Edge, or Safari.
+          {state.reason === 'platform' ? (
+            <>
+              <strong>Desktop browser required.</strong> Redactyl runs a 770 MB detection model
+              entirely in your browser, which needs more memory than phones and tablets can spare.
+              Open this page on a desktop or laptop in Chrome, Firefox, Edge, or Safari.
+            </>
+          ) : (
+            <>
+              <strong>Browser not supported.</strong> Redactyl needs cross-origin isolation and{' '}
+              <code>SharedArrayBuffer</code> to run the detection model in your browser. Try a
+              current version of Chrome, Firefox, Edge, or Safari.
+            </>
+          )}
         </p>
       </div>
     );

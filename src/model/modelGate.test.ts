@@ -70,14 +70,17 @@ describe('modelGateReducer', () => {
     expect(modelGateReducer({ name: 'ready' }, { type: 'probe_miss' })).toEqual({ name: 'ready' });
   });
 
-  it('probe_unsupported transitions probing → unsupported', () => {
+  it('probe_unsupported transitions probing → unsupported, carrying the reason', () => {
     expect(
-      modelGateReducer({ name: 'probing' }, { type: 'probe_unsupported' }),
-    ).toEqual({ name: 'unsupported' });
+      modelGateReducer({ name: 'probing' }, { type: 'probe_unsupported', reason: 'platform' }),
+    ).toEqual({ name: 'unsupported', reason: 'platform' });
+    expect(
+      modelGateReducer({ name: 'probing' }, { type: 'probe_unsupported', reason: 'browser' }),
+    ).toEqual({ name: 'unsupported', reason: 'browser' });
   });
 
   it('unsupported ignores model-lifecycle events', () => {
-    const s: ModelState = { name: 'unsupported' };
+    const s: ModelState = { name: 'unsupported', reason: 'browser' };
     expect(modelGateReducer(s, { type: 'probe_hit' })).toEqual(s);
     expect(modelGateReducer(s, { type: 'probe_miss' })).toEqual(s);
     expect(modelGateReducer(s, { type: 'download_start' })).toEqual(s);
@@ -85,7 +88,7 @@ describe('modelGateReducer', () => {
 
   it('probe_unsupported from a non-probing state is ignored', () => {
     expect(
-      modelGateReducer({ name: 'missing' }, { type: 'probe_unsupported' }),
+      modelGateReducer({ name: 'missing' }, { type: 'probe_unsupported', reason: 'platform' }),
     ).toEqual({ name: 'missing' });
   });
 });
