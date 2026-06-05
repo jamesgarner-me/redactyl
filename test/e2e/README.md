@@ -58,59 +58,47 @@ correct ones).
 
 ## Topology
 
-A single self-contained Docker image (multi-arch Playwright base — Apple Silicon
-+ amd64). Its entrypoint: `pnpm build → pnpm preview (background, 127.0.0.1) →
-playwright test → propagate exit code`. The model downloads **inside** the
-container. `pnpm test:e2e` is a thin build-and-run wrapper with one volume mount
-for artifacts. Nothing persists; rerun = clean room. The first slice runs
-**cold** (real HF download every run) to prove the download + consent path.
+`pnpm test:e2e` (`run.sh`) runs Playwright **natively** against the host's
+Chromium: `playwright install chromium → pnpm build → vite preview (127.0.0.1)
+→ playwright test → propagate exit code`. The exit code is the gate. The model
+downloads from the HF CDN on first run; artifacts (downloaded output, Playwright
+report/trace) land in `test/e2e/artifacts/`. The first slice runs **cold** (real
+HF download) to prove the download + consent path.
 
 ## Running it
 
-Two paths, same spec and three-legged oracle:
+```sh
+pnpm test:e2e
+```
 
-| Command | Path | When |
-| ------- | ---- | ---- |
-| `pnpm test:e2e` | **Docker** (default/canonical) | CI and the **RunPod GPU container** — the ultimate target |
-| `pnpm test:e2e:local` | **native, macOS** (`run.sh --local`) | Apple Silicon dev box, no Docker |
-
-`pnpm test:e2e` builds `Dockerfile` and runs the spec; the container exit code is
-the gate. Artifacts (downloaded output, Playwright report/trace) are copied to
-`test/e2e/artifacts/` afterwards. **It requires a GPU host** (see Status), which on
-Linux/RunPod means an injected Vulkan ICD (the `E2E_GPU=1` flag set by the runner
-workflow).
-
-### Local macOS run (`E2E_GPU_MAC`)
-
-Docker Desktop on macOS can't pass the host GPU into a Linux container, so the
-Docker path falls back to the CPU/WASM provider on a Mac and q4f16 won't load.
-`pnpm test:e2e:local` skips Docker and runs Playwright **natively** against the
-host's Chromium, setting `E2E_GPU_MAC=1`. That gate (in `playwright.config.mjs`)
-adds the macOS WebGPU flags — `--use-angle=metal`, `--use-gl=angle`,
+One path, run by a human before a release. It needs a **hardware WebGPU adapter**:
+the production `q4f16` model runs only on the WebGPU execution provider (the
+WASM/CPU EP lacks the `GatherBlockQuantized` kernel; software WebGPU lacks
+`shader-f16`). `run.sh` sets **`E2E_GPU_MAC=1`**, which makes `playwright.config.mjs`
+launch Chromium with the macOS WebGPU flags — `--use-angle=metal`, `--use-gl=angle`,
 `--enable-unsafe-webgpu`, `--enable-gpu`, `--ignore-gpu-blocklist` — so headless
-Chromium acquires a **hardware Metal-backed WebGPU adapter** advertising
-`shader-f16`, and the real q4f16 path runs. Verified green on Apple Silicon (model
-loads on WebGPU, NER spans produced, oracle passes).
+Chromium acquires a hardware Metal-backed adapter advertising `shader-f16` and the
+real q4f16 path runs.
 
-This is a **dev convenience only** — it does not change CI/RunPod, which always use
-the Docker path and the Linux `E2E_GPU` (Vulkan) flags. It's a way to exercise the
-real model path on a Mac without a GPU pod.
+**Verified green on Apple Silicon** (model loads on WebGPU, NER spans produced,
+three-legged oracle passes). A GPU-less host falls back to WASM/CPU and the model
+won't load — so this is, for now, a Mac dev-box gate.
 
 ## Status
 
-The harness is built and the whole flow is wired — build, `vite preview` under
-cross-origin isolation, model download, drop, review, redact, download, and the
-three-legged oracle. Cross-origin isolation in containerised headless Chromium is
+The harness is built and green locally on Apple Silicon — build, `vite preview`
+under cross-origin isolation, model download, drop, review, redact, download, and
+the three-legged oracle all pass. Cross-origin isolation in headless Chromium is
 proven (the issue-01 spike passed).
 
-**The NER run requires a real GPU.** The production `q4f16` model runs only on the
-WebGPU execution provider; a GPU-less host falls back to WASM/CPU, which lacks the
-`GatherBlockQuantized` kernel, and software WebGPU lacks `shader-f16`. So the green
-run happens on a **self-hosted GPU runner (RunPod, ephemeral GitHub Actions)** —
-see the 2026-06-03 correction in
-[ADR 0003](../../docs/adr/0003-local-ephemeral-docker-e2e-pii-recall.md) and issues
-04 (runner) and 05 (pod WebGPU spike). Container fixes already baked in:
-`--disable-dev-shm-usage` + `--shm-size=2g`; `vite preview --host 127.0.0.1`.
+Next, within the local gate: PDF Samples, more categories, Exclude/Dismiss paths.
 
-Then: PDF Samples, more categories, Exclude/Dismiss paths, model caching on the pod
-(issue 03). See `.scratch/e2e-verification/issues/`.
+## Future: running this in CI on a GPU
+
+To gate releases automatically rather than by hand, this needs to run in CI — but
+on a **GPU host**, since `q4f16` can't run on GitHub's free GPU-less runners. The
+explored approach (a self-hosted ephemeral GitHub Actions runner on a RunPod GPU
+pod, with Linux/Vulkan Chromium flags rather than the Mac/Metal ones) is **deferred
+to the backlog**, tracked in `.scratch/e2e-verification/issues/` (issue 04 — runner,
+issue 05 — pod WebGPU spike, issue 03 — model cache). The candidate Vulkan flags and
+runner wiring live in those issues, not in this branch.

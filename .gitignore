@@ -10,3 +10,8 @@ dist-ssr
 
 # E2E harness artifacts (downloaded output, Playwright report/trace)
 test/e2e/artifacts
+.playwright/
+test-results/
+
+# Throwaway scratch (reports, spikes) — issues/PRDs under .scratch/ are tracked
+.scratch/tmp/

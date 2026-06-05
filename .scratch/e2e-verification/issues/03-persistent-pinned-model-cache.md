@@ -1,6 +1,6 @@
 # Persistent pinned model cache for the E2E harness
 
-Status: ready-for-agent
+Status: ready-for-human
 
 ## Parent
 
@@ -34,3 +34,13 @@ HF download + consent path on demand (e.g. once per release).
 ## Blocked by
 
 The text slice (issue 02) — needs the working cold harness first.
+
+## 2026-06-06 — deferred to roadmap; folds into the RunPod GPU-CI item
+
+Re-scoped from `ready-for-agent` to `ready-for-human` and deferred. The original
+"Docker volume cache" framing was for an ephemeral container path that no longer
+exists — the gate now runs natively (`pnpm test:e2e`), where the host's HF
+`transformers-cache` is already warm across runs, so cold re-download isn't a pain
+point locally. The warm-cache problem only resurfaces for the deferred RunPod runner
+(ephemeral workers ⇒ a network-volume cache), so this folds into issue 04's roadmap
+rather than standing alone.

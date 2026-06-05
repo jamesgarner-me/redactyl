@@ -1,6 +1,6 @@
-# Text-Sample E2E slice — full Docker thread + three-legged oracle
+# Text-Sample E2E slice — full thread + three-legged oracle
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 
@@ -64,3 +64,17 @@ threaded-WASM runtime; `vite preview --host 127.0.0.1` for the readiness probe.)
 
 - Issue 05 (pod WebGPU spike) and issue 04 (GPU runner) — the three-legged oracle
   can only pass on the real q4f16/WebGPU path, which needs a GPU.
+
+## Resolution (2026-06-06) — completed via the native Mac run, not Docker
+
+The slice is **green**: spec, committed Sample + Manifest, and the three-legged
+oracle all pass against the real q4f16/WebGPU path. The GPU blocker above was
+resolved not by a GPU pod but by running Playwright **natively on the host** with
+`E2E_GPU_MAC=1` (hardware Metal-backed WebGPU adapter) — see the ADR 0003 addendum
+and `test/e2e/README.md`.
+
+The Dockerfile/container acceptance criteria (build a multi-arch image, `docker run`
+exit code as the gate) are **dropped**: Docker Desktop on macOS can't pass the GPU
+into the container, so the Docker path never worked locally. The Dockerfile was
+removed in the 2026-06-06 cleanup; `pnpm test:e2e` is now the native run. Running
+the gate in CI on a GPU host is deferred to the roadmap (issues 04, 05, 03).

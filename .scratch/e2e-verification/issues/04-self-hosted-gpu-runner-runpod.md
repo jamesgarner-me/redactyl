@@ -76,3 +76,20 @@ remaining criteria (hardware adapter with `shader-f16`, oracle green on
 q4f16/WebGPU, model served from cache) are all gated on **issue 05** + human
 RunPod provisioning, so this stays `ready-for-human`. The candidate Vulkan flags
 are a best guess for the spike to confirm, not verified hardware.
+
+### 2026-06-06 — deferred to roadmap; this is the consolidated GPU-CI item
+
+The e2e gate now runs **locally and by hand** (`pnpm test:e2e`, native + Metal
+WebGPU on Apple Silicon — verified green; see ADR 0003's 2026-06-06 decision). The
+RunPod GPU-CI work was wired but never verified, depends on the external
+`worker-github_runner` repo + a provisioned pod, and is **not on the critical path**
+for shipping. It is therefore deferred — this issue is the single roadmap item for
+"run the e2e in CI on a GPU."
+
+Removed from the branch in the cleanup (preserved here / in git history as the
+design of record): `.github/workflows/e2e.yml` (boot-runner → self-hosted e2e), and
+the candidate Linux `E2E_GPU` Vulkan flags from `playwright.config.mjs`
+(`--use-angle=vulkan --enable-features=Vulkan --enable-unsafe-webgpu
+--ignore-gpu-blocklist` — to be confirmed/corrected by issue 05). Picking this back
+up means: provision the pod, run the issue-05 spike to confirm the hardware adapter,
+restore the workflow + verified flags, then tick the criteria above.

@@ -62,3 +62,27 @@ Scope: **dev convenience, not a CI path.** It is parallel to — and independent
 the Linux `E2E_GPU` (Vulkan) flags the RunPod runner sets; the two gates don't
 interact. It lets a developer exercise the real model path on a Mac without
 standing up a GPU pod, but the authoritative gate is still the RunPod container.
+
+## Decision (2026-06-06): the native local run is the gate; RunPod CI is deferred
+
+The two corrections above explored automating this in CI on a self-hosted RunPod
+GPU runner and made that the "authoritative" target, demoting the native Mac run to
+a "dev convenience escape hatch." We are **reverting to this ADR's original stance**:
+the gate is **local and human-run**, invoked via `pnpm test:e2e` before a release.
+It is not in CI.
+
+What changed and why: the RunPod runner was wired but never verified — the hardware
+WebGPU/`shader-f16` adapter on the pod (issue 05) and a green oracle on the
+q4f16/Vulkan path (issue 04) were never confirmed, and the automation depends on an
+external worker repo + provisioning that isn't in place. Meanwhile the **native Mac
+run is verified green** and exercises the exact production q4f16/WebGPU path. Rather
+than carry half-wired, unverifiable CI on the branch, we ship the working local gate
+now and keep the GPU-CI ambition as a roadmap item.
+
+The WebGPU finding from the corrections above **still stands** — q4f16 needs a
+hardware WebGPU adapter, so any future CI home must be a GPU host. That work
+(RunPod runner + pod WebGPU spike + model cache) moves to the backlog:
+`.scratch/e2e-verification/issues/` (issues 04, 05, 03). The `.github/workflows/e2e.yml`
+workflow and the candidate Linux/`E2E_GPU` Vulkan flags have been removed from the
+branch — their design is preserved in those issues. The Mac/`E2E_GPU_MAC` flags are
+no longer an "escape hatch" but the gate's normal, only path.

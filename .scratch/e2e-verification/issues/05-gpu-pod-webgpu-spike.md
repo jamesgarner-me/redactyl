@@ -55,3 +55,13 @@ environment to run in rather than a bare pod:
 
 Still `ready-for-human`: needs a person to provision the GPU pod and eyeball the
 adapter. This remains the gating prerequisite for a trustworthy green e2e.
+
+### 2026-06-06 — deferred to roadmap (prerequisite for issue 04)
+
+Deferred alongside issue 04: the e2e gate runs locally/by hand for now, so the GPU
+pod isn't needed yet. This spike stays the **first step** when the RunPod GPU-CI
+roadmap item is picked up — confirm the hardware WebGPU adapter + `shader-f16` on
+the pod *before* rebuilding any runner automation. (For the record, the equivalent
+question on macOS — does headless Chromium get a hardware WebGPU adapter with
+`shader-f16`? — is answered **yes** via the `E2E_GPU_MAC`/Metal path; this issue is
+specifically the Linux/Vulkan/pod equivalent.)

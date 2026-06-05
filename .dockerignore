@@ -1,7 +1,0 @@
-node_modules
-.git
-*.log
-firebase-debug.log
-dist
-.scratch
-test/e2e/artifacts

@@ -5,25 +5,12 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 
-// On the self-hosted RunPod GPU runner the workflow sets E2E_GPU=1 to ask
-// Chromium for a HARDWARE Vulkan WebGPU adapter (q4f16 needs shader-f16, which
-// software WebGPU lacks). These are the candidate flags — the exact verified set
-// is finalised by the pod WebGPU spike (issue 05, .scratch/e2e-verification/).
-const vulkanArgs = process.env.E2E_GPU
-  ? [
-      '--use-angle=vulkan',
-      '--enable-features=Vulkan',
-      '--enable-unsafe-webgpu',
-      '--ignore-gpu-blocklist',
-    ]
-  : [];
-
-// Local dev convenience: set E2E_GPU_MAC=1 to run this gate natively on an Apple
-// Silicon Mac (Docker on macOS can't pass the GPU into the Linux container, so
-// the committed run.sh harness only gets software WebGPU / CPU EP). These ask
-// headless Chromium for a HARDWARE Metal-backed WebGPU adapter so q4f16 can load.
-// NOT used by CI/RunPod — this is a host-only escape hatch.
-const metalArgs = process.env.E2E_GPU_MAC
+// This gate runs natively on the host (see run.sh): E2E_GPU_MAC=1 asks headless
+// Chromium for a HARDWARE Metal-backed WebGPU adapter so the production q4f16
+// model (WebGPU + shader-f16, which software WebGPU lacks) actually loads.
+// Verified green on Apple Silicon. Running it in CI on a GPU host needs a
+// different (Vulkan) flag set — that's a roadmap item, see README → Future.
+const gpuArgs = process.env.E2E_GPU_MAC
   ? [
       '--use-gl=angle',
       '--use-angle=metal',
@@ -32,8 +19,6 @@ const metalArgs = process.env.E2E_GPU_MAC
       '--ignore-gpu-blocklist',
     ]
   : [];
-
-const gpuArgs = [...vulkanArgs, ...metalArgs];
 
 export default defineConfig({
   testDir: here('.'),
@@ -60,9 +45,8 @@ export default defineConfig({
           //
           // The model's q4f16 variant runs ONLY on the WebGPU EP (the WASM/CPU EP
           // lacks the GatherBlockQuantized kernel; software SwiftShader lacks
-          // shader-f16). So this harness needs a HARDWARE WebGPU adapter — it runs
-          // on a GPU pod, not a GPU-less host. The hardware-WebGPU flags are
-          // gated behind E2E_GPU (set by the RunPod workflow) — see gpuArgs above.
+          // shader-f16). So this harness needs a HARDWARE WebGPU adapter — the
+          // host's GPU, reached via the E2E_GPU_MAC flags above.
           args: ['--disable-dev-shm-usage', ...gpuArgs],
         },
       },
