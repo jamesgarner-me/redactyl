@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="#06223f"/>
+  <!-- swept-back crest: a tapering horn pointing up and back, opposite the beak -->
+  <path d="M34 24 C42 12 52 9 58 11 C49 15 43 20 40 29 Z" fill="#e8772e"/>
+  <!-- head, neck and long pointed beak -->
+  <path d="M40 29
+           C42 23 40 18 34 18
+           C29 18 25 21 23 25
+           L5 35
+           L23 33
+           C24 36 27 38 31 39
+           C30 43 31 50 33 55
+           L41 52
+           C38 46 39 39 40 29 Z" fill="#36b3a0"/>
+  <!-- eye -->
+  <circle cx="31" cy="24" r="2.3" fill="#06223f"/>
+</svg>
