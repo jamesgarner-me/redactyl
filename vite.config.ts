@@ -39,6 +39,13 @@ export default defineConfig({
         theme_color: '#06223f',
         background_color: '#06223f',
         display: 'standalone',
+        icons: [
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          // `any maskable` lets Android crop the full-bleed navy tile to its mask
+          // shape without showing transparent corners.
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        ],
       },
     }),
   ],
