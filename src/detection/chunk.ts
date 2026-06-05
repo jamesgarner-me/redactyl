@@ -32,6 +32,11 @@ export function chunkText(
   size = NER_CHUNK_CHARS,
   overlap = NER_OVERLAP_CHARS,
 ): Chunk[] {
+  // Blank text has nothing to classify, and feeding the NER pipeline an empty
+  // string hangs the worker (no tokens → the forward pass never settles, and the
+  // detect handler posts no result). This is reached when verification re-runs on
+  // a fully rasterised PDF page, whose flattened content has no text layer.
+  if (text.trim().length === 0) return [];
   if (text.length <= size) return [{ text, offset: 0 }];
   const chunks: Chunk[] = [];
   let i = 0;

@@ -46,25 +46,36 @@ self.onmessage = async (event: MessageEvent<Incoming>) => {
       return;
 
     case 'detect': {
-      // NER (only if the model is loaded/loading) plus the regex sweep, which the
-      // caller can switch off (Advanced). Regex catches patterned values the model
-      // misses in prose, so it's on by default. Merged once either way.
-      const regex = msg.regex
-        ? [...regexScoredSpans(msg.text, msg.customPatterns), ...labelledFieldSpans(msg.text)]
-        : [];
-      const ner = await detectNer(msg.text, (processed, total) =>
-        post({ type: 'detect-progress', id: msg.id, processed, total }),
-      );
-      // Propagate each detected value to its every verbatim occurrence, so an
-      // entity caught once (in its strongly-contexted field) is masked at the
-      // prose/heading occurrences the model misses non-deterministically.
-      const detected = [...regex, ...ner];
-      const propagated = propagateOccurrences(msg.text, detected);
-      // The full Spans → Items reduction reads top-to-bottom here: merge →
-      // (propagate, above) → group, so detection delivers the user-facing Items
-      // directly rather than leaving the grouping to a caller.
-      const merged = mergeSpans([...detected, ...propagated]);
-      post({ type: 'items', id: msg.id, items: spansToItems(merged) });
+      // Always settle the caller's request: on any failure post `detect-error`
+      // so the detect() promise rejects, rather than leaving it pending forever
+      // (a silent hang on the Redact step). Detection is fail-closed upstream.
+      try {
+        // NER (only if the model is loaded/loading) plus the regex sweep, which the
+        // caller can switch off (Advanced). Regex catches patterned values the model
+        // misses in prose, so it's on by default. Merged once either way.
+        const regex = msg.regex
+          ? [...regexScoredSpans(msg.text, msg.customPatterns), ...labelledFieldSpans(msg.text)]
+          : [];
+        const ner = await detectNer(msg.text, (processed, total) =>
+          post({ type: 'detect-progress', id: msg.id, processed, total }),
+        );
+        // Propagate each detected value to its every verbatim occurrence, so an
+        // entity caught once (in its strongly-contexted field) is masked at the
+        // prose/heading occurrences the model misses non-deterministically.
+        const detected = [...regex, ...ner];
+        const propagated = propagateOccurrences(msg.text, detected);
+        // The full Spans → Items reduction reads top-to-bottom here: merge →
+        // (propagate, above) → group, so detection delivers the user-facing Items
+        // directly rather than leaving the grouping to a caller.
+        const merged = mergeSpans([...detected, ...propagated]);
+        post({ type: 'items', id: msg.id, items: spansToItems(merged) });
+      } catch (err) {
+        post({
+          type: 'detect-error',
+          id: msg.id,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
       return;
     }
   }
