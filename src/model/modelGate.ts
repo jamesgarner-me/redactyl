@@ -11,10 +11,16 @@ export interface ModelProgress {
   total: number;
 }
 
+// Why the NER path can't run here. `browser`: lacks SharedArrayBuffer / cross-origin
+// isolation (an old or misconfigured desktop browser). `platform`: a phone/tablet —
+// iOS WebKit caps per-tab memory below what the 770 MB model needs to instantiate, and
+// mobile RAM is too tight in general, so the load would crash-and-reload rather than run.
+export type UnsupportedReason = 'browser' | 'platform';
+
 export type ModelState =
   | { name: 'probing' } // checking IndexedDB cache on load
   | { name: 'missing' } // first visit — the quiet card
-  | { name: 'unsupported' } // browser lacks SharedArrayBuffer / cross-origin isolation
+  | { name: 'unsupported'; reason: UnsupportedReason } // can't run the model here
   | { name: 'downloading'; progress: ModelProgress | null }
   | { name: 'ready' }
   | { name: 'error'; message: string };
@@ -22,7 +28,7 @@ export type ModelState =
 export type ModelEvent =
   | { type: 'probe_hit' } // cache probe found the model
   | { type: 'probe_miss' } // no cached model
-  | { type: 'probe_unsupported' } // browser lacks SharedArrayBuffer — terminal
+  | { type: 'probe_unsupported'; reason: UnsupportedReason } // can't run here — terminal
   | { type: 'download_start' } // begin (or re-)download / retry
   | { type: 'progress'; progress: ModelProgress }
   | { type: 'download_success' }
@@ -50,7 +56,7 @@ export function modelGateReducer(state: ModelState, event: ModelEvent): ModelSta
     case 'probe_miss':
       return state.name === 'probing' ? { name: 'missing' } : state;
     case 'probe_unsupported':
-      return state.name === 'probing' ? { name: 'unsupported' } : state;
+      return state.name === 'probing' ? { name: 'unsupported', reason: event.reason } : state;
     case 'download_start':
       // From the gate (missing / error retry) or a Re-download while ready.
       return state.name === 'missing' || state.name === 'error' || state.name === 'ready'

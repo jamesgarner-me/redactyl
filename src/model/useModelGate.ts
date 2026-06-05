@@ -5,6 +5,7 @@ import {
   type ModelClient,
   type ModelState,
 } from './modelGate';
+import { isMobilePlatform } from './platform';
 
 export interface ModelGate {
   state: ModelState;
@@ -37,8 +38,15 @@ export function useModelGate(client: ModelClient): ModelGate {
   // Absent it, fail fast to the unsupported gate rather than a confusing
   // mid-inference crash — covers browsers too old for cross-origin isolation.
   useEffect(() => {
+    // Phones/tablets can't fit the 770 MB model in memory — gate them out before
+    // any download so they don't hit the iOS crash-and-re-download loop. See
+    // `isMobilePlatform`. Checked first as it's the more specific advisory.
+    if (isMobilePlatform()) {
+      dispatch({ type: 'probe_unsupported', reason: 'platform' });
+      return;
+    }
     if (typeof SharedArrayBuffer === 'undefined') {
-      dispatch({ type: 'probe_unsupported' });
+      dispatch({ type: 'probe_unsupported', reason: 'browser' });
       return;
     }
     let active = true;
