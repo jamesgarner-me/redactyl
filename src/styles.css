@@ -163,6 +163,11 @@ body {
   background: var(--surface-2);
 }
 
+/* The cog glyph reads small for its square; nudge it up to fill the button. */
+.cog {
+  font-size: 1.4rem;
+}
+
 /* Small-screen advisory (non-blocking) */
 .small-screen-advisory {
   display: none;
@@ -1145,8 +1150,8 @@ body {
   font-family: var(--font-mono);
   font-size: clamp(6px, 0.69vw, 15px);
   line-height: 1;
-  color: var(--text-dim);
-  opacity: 0.15;
+  color: var(--text);
+  opacity: 0.28;
 }
 
 @media (max-width: 640px) {

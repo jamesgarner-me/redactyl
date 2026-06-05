@@ -54,6 +54,24 @@ describe('PHONE', () => {
     // Regression: the new 3-3-3 branch must come last so this matches whole.
     expect(valuesOf('ring +1 408 776 2211 anytime', 'PHONE')).toEqual(['+1 408 776 2211']);
   });
+
+  it('matches an AU landline written +61 with a single-digit area code (1-4-4)', () => {
+    expect(valuesOf('compliance hotline +61 3 9602 8899 during hours', 'PHONE')).toEqual([
+      '+61 3 9602 8899',
+    ]);
+    // Hyphen separators are equivalent.
+    expect(valuesOf('or +61-3-9602-8899 after hours', 'PHONE')).toEqual(['+61-3-9602-8899']);
+  });
+
+  it('captures a +CC mobile whole even when its 9-digit tail is a valid TFN', () => {
+    // 400 000 004 satisfies the TFN mod-11 check, so without the lookbehind guard
+    // on the ACCOUNT_NUMBER pattern it would win the overlap and strand the +61.
+    expect(valuesOf('reach me on +61 400 000 004 anytime', 'PHONE')).toEqual([
+      '+61 400 000 004',
+    ]);
+    // ...and it must NOT be reclassified as an account number.
+    expect(valuesOf('reach me on +61 400 000 004 anytime', 'ACCOUNT_NUMBER')).toEqual([]);
+  });
 });
 
 describe('TFN (ACCOUNT_NUMBER)', () => {
@@ -71,6 +89,12 @@ describe('TFN (ACCOUNT_NUMBER)', () => {
 
   it('does not fire inside a longer digit run', () => {
     expect(valuesOf('order 1234567820 shipped', 'ACCOUNT_NUMBER')).toEqual([]);
+  });
+
+  it('still matches a standalone TFN that is not a +CC phone tail', () => {
+    // The phone-collision lookbehind must only suppress digits preceded by a
+    // country code — a bare labelled TFN is unaffected.
+    expect(valuesOf('TFN: 400 000 004 on record', 'ACCOUNT_NUMBER')).toEqual(['400 000 004']);
   });
 });
 

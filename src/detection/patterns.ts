@@ -101,9 +101,14 @@ export const BUILTIN_PATTERNS: DetectorPattern[] = [
   // Australian TFN — 9 digits, optionally grouped 3-3-3. Classed as
   // ACCOUNT_NUMBER (no dedicated category) so it shares the ID bucket and
   // collapses with the model's account_number spans. Checksum-gated (above).
+  // The negative lookbehind keeps the 9-digit run from claiming the tail of a
+  // +CC phone number (e.g. the `400 000 004` in `+61 400 000 004`): those digits
+  // belong to a phone, not a TFN. Without it the higher-confidence TFN span beats
+  // PHONE at merge and the `+CC` prefix is stranded outside the token. This is the
+  // mirror of the PHONE 3-3-3 branch requiring a leading + — the guard runs both ways.
   {
     category: 'ACCOUNT_NUMBER',
-    pattern: /\b\d{3}[ -]?\d{3}[ -]?\d{3}\b/g,
+    pattern: /(?<!\+\d{1,3}[\s.-]?)\b\d{3}[ -]?\d{3}[ -]?\d{3}\b/g,
     confidence: 85,
     validate: tfnValid,
   },
@@ -120,14 +125,16 @@ export const BUILTIN_PATTERNS: DetectorPattern[] = [
 
   // Ambiguous formats — lowest confidence, so structured matches win overlaps.
   {
-    // Three alternatives, tried in order: a bare international run (+CC then
-    // 10-15 digits); the 3-3-4 grouping (optionally with a +CC); and — last, so
-    // a true 3-3-4 isn't truncated — a +CC 3-3-3 grouping for AU mobiles like
-    // `+61 408 776 221`. The 3-3-3 branch requires the leading + so it never
-    // collides with a bare 9-digit TFN.
+    // Four alternatives, tried in order: a bare international run (+CC then
+    // 10-15 digits); the 3-3-4 grouping (optionally with a +CC); a +CC 3-3-3
+    // grouping for AU mobiles like `+61 408 776 221`; and — last, so it can't
+    // truncate any of the above — a +CC 1-4-4 grouping for AU landlines with a
+    // single-digit area code like `+61 3 9602 8899`. The 3-3-3 branch requires
+    // the leading + so it never collides with a bare 9-digit TFN; the 1-4-4
+    // branch requires both inter-group separators to keep false positives down.
     category: 'PHONE',
     pattern:
-      /(?:\+\d{10,15})|(?:(?:\+\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4})|(?:\+\d{1,3}[\s.-]?\d{3}[\s.-]\d{3}[\s.-]\d{3})/g,
+      /(?:\+\d{10,15})|(?:(?:\+\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4})|(?:\+\d{1,3}[\s.-]?\d{3}[\s.-]\d{3}[\s.-]\d{3})|(?:\+\d{1,3}[\s.-]\d[\s.-]\d{4}[\s.-]\d{4})/g,
     confidence: 40,
   },
   {
