@@ -6,6 +6,13 @@ describe('chunkText', () => {
     expect(chunkText('hello world', 2000)).toEqual([{ text: 'hello world', offset: 0 }]);
   });
 
+  it('yields no chunks for blank text, so NER is never run on an empty string', () => {
+    // A fully rasterised PDF page re-extracts to empty text; an empty NER forward
+    // pass hangs the worker, so an empty document must produce zero model calls.
+    expect(chunkText('')).toEqual([]);
+    expect(chunkText('   \n\t ')).toEqual([]);
+  });
+
   it('splits on line boundaries, leaving every line intact', () => {
     const lines = Array.from({ length: 40 }, (_, i) => `line ${i} has a few words here`);
     const chunks = chunkText(lines.join('\n'), 120, 0);

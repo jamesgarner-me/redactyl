@@ -5,6 +5,7 @@ import type { CustomPattern } from './patterns';
 // Worker → main messages.
 type Outgoing =
   | { type: 'items'; id: number; items: Item[] }
+  | { type: 'detect-error'; id: number; message: string }
   | { type: 'detect-progress'; id: number; processed: number; total: number }
   | { type: 'progress'; file: string; loaded: number; total: number }
   | { type: 'ready' }
@@ -47,7 +48,10 @@ function cached(): boolean {
 export function createModelWorker(): ModelWorker {
   let worker = spawn();
   let nextId = 0;
-  const pending = new Map<number, (items: Item[]) => void>();
+  const pending = new Map<
+    number,
+    { resolve: (items: Item[]) => void; reject: (err: unknown) => void }
+  >();
   const progressCbs = new Map<number, (processed: number, total: number) => void>();
   let activeLoad: {
     onProgress: (p: ModelProgress) => void;
@@ -65,11 +69,20 @@ export function createModelWorker(): ModelWorker {
       const msg = event.data;
       switch (msg.type) {
         case 'items': {
-          const resolve = pending.get(msg.id);
-          if (resolve) {
+          const entry = pending.get(msg.id);
+          if (entry) {
             pending.delete(msg.id);
             progressCbs.delete(msg.id);
-            resolve(msg.items);
+            entry.resolve(msg.items);
+          }
+          break;
+        }
+        case 'detect-error': {
+          const entry = pending.get(msg.id);
+          if (entry) {
+            pending.delete(msg.id);
+            progressCbs.delete(msg.id);
+            entry.reject(new Error(msg.message));
           }
           break;
         }
@@ -130,6 +143,9 @@ export function createModelWorker(): ModelWorker {
   // can't abort its own fetch. Shared by Cancel and the stall watchdog.
   function replaceWorker() {
     worker.terminate();
+    // Reject (don't silently drop) any in-flight detect so its caller fails
+    // closed instead of hanging on a promise the dead worker can never answer.
+    for (const { reject } of pending.values()) reject(new Error('Detection worker was restarted'));
     pending.clear();
     progressCbs.clear();
     worker = spawn();
@@ -193,8 +209,8 @@ export function createModelWorker(): ModelWorker {
   const detector: Detector = {
     detect(text, opts) {
       const id = nextId++;
-      return new Promise<Item[]>((resolve) => {
-        pending.set(id, resolve);
+      return new Promise<Item[]>((resolve, reject) => {
+        pending.set(id, { resolve, reject });
         if (opts?.onProgress) progressCbs.set(id, opts.onProgress);
         // RegExp is structured-cloneable, so customPatterns cross the boundary.
         worker.postMessage({
