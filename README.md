@@ -216,9 +216,9 @@ pnpm test       # full suite incl. the offline + PDF-corpus regression checks
 > `pnpm build && pnpm preview`.
 
 Stack: Vite · React · TypeScript · transformers.js (ONNX) · pdfjs · pdf-lib ·
-vite-plugin-pwa. Hosted on Vercel. (The disabled Firebase Hosting workflows under
-`.github/workflows/` are explained in
-[ADR 0001](./docs/adr/0001-browser-only-delivery-via-firebase-and-hf-cdn.md).)
+vite-plugin-pwa. Hosted on Vercel; the earlier Firebase Hosting setup and the
+cross-origin-isolation rationale are explained in
+[ADR 0001](./docs/adr/0001-browser-only-delivery-via-firebase-and-hf-cdn.md).
 
 ## Contributing
 
