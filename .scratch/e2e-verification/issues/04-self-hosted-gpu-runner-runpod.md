@@ -77,14 +77,15 @@ q4f16/WebGPU, model served from cache) are all gated on **issue 05** + human
 RunPod provisioning, so this stays `ready-for-human`. The candidate Vulkan flags
 are a best guess for the spike to confirm, not verified hardware.
 
-### 2026-06-06 — deferred to roadmap; this is the consolidated GPU-CI item
+### 2026-06-06 — deferred to roadmap (runner design under umbrella issue 06)
 
 The e2e gate now runs **locally and by hand** (`pnpm test:e2e`, native + Metal
 WebGPU on Apple Silicon — verified green; see ADR 0003's 2026-06-06 decision). The
 RunPod GPU-CI work was wired but never verified, depends on the external
 `worker-github_runner` repo + a provisioned pod, and is **not on the critical path**
-for shipping. It is therefore deferred — this issue is the single roadmap item for
-"run the e2e in CI on a GPU."
+for shipping. It is therefore deferred. The umbrella roadmap item is
+[06](06-roadmap-gpu-ci-for-e2e.md); this issue holds the runner design + the
+removed wiring as design-of-record.
 
 Removed from the branch in the cleanup (preserved here / in git history as the
 design of record): `.github/workflows/e2e.yml` (boot-runner → self-hosted e2e), and
