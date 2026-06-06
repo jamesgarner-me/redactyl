@@ -1,13 +1,17 @@
 # Redactyl
 
-A browser-only tool that finds personal data in PDFs and text files and produces a sanitised copy where the data is truly removed — nothing ever leaves the device.
+A browser-only tool that finds personal data in PDFs, text files and CSV exports and produces a sanitised copy where the data is truly removed — nothing ever leaves the device.
 
 ## Language
 
 **Document**:
 The opened file the user is redacting — its extracted text together with whatever the source format needs to locate **Occurrences** and produce a sanitised copy. **Detect** runs on a Document's text; **Redact** produces a new Document of the same kind.
-_Kinds_: **text** (`.txt` / `.md`) and **PDF**. The kind decides how Occurrences are located (line vs page) and whether a **Mapping** sidecar is offered (text only).
+_Kinds_: **text** (`.txt` / `.md`), **CSV** (`.csv`) and **PDF**. The kind decides how Occurrences are located (line vs row/column vs page) and whether a **Mapping** sidecar is offered (text and CSV; not PDF).
 _Avoid_: file (the raw upload before extraction), input.
+
+**Cell**:
+A single field in a **CSV** **Document** — one row/column intersection. The atomic unit for CSV occurrence location and redaction; **Detect** still runs on the Document's flattened `text`, but **Redact** replaces values inside Cells, not across cell boundaries.
+_Avoid_: field, column value.
 
 **Detect**:
 Identify ranges of text that might be personal data, via a regex layer and an NER layer.

@@ -1,6 +1,6 @@
 # CSV Document adapter — parse, locate by row/column, redact in place
 
-Status: needs-triage
+Status: ready-for-agent
 
 ## Parent
 
@@ -14,13 +14,13 @@ Today, `.csv` is rejected in `FileDropZone` and was explicitly out of v1 scope (
 
 ### Adapter responsibilities
 
-`CsvDocument` (name TBD — follow existing `createTextDocument` / `createPdfDocument` factory style):
+`createCsvDocument` (same factory style as `createTextDocument` / `createPdfDocument`):
 
-- **Parse** the file at open time with RFC 4180-style rules (comma delimiter, quoted fields, `""` escape, BOM strip). Malformed CSV → opener returns `{ ok: false, message }` — no review screen.
-- Expose a **`text`** view for **Detect** by flattening cell values in a stable, documented order (e.g. row-major, cells joined with a delimiter that cannot appear in parsed cell content). Span offsets in that view must map back to `(row, col)` for locate and redact.
-- **`locate(item)`** returns row/column locators (e.g. `row 4, col 3`) for the Item's Occurrences — not `ln` line numbers.
+- **Parse** the file at open time with RFC 4180-style rules (comma delimiter, quoted fields, `""` escape, BOM strip). Pad short rows with empty cells. Syntactic parse failure → opener returns `{ ok: false, message }` — no review screen.
+- Expose a **`text`** view for **Detect** by joining parsed cells row-major with `\x1f`, maintaining an offset→`(row, col)` index. Span offsets in that view map back to **Cells** for locate and redact ([ADR 0004](../../../docs/adr/0004-csv-cell-flattening-for-detect.md)).
+- **`locate(item)`** returns physical row/column locators — e.g. `row 2, col 3` or `row 2, col 3, 5 +2` — not `ln` line numbers. Row 1 is the first line of the file (header rows are not renumbered).
 - **`allowMapping`**: `true` (same as text).
-- **`redact(...)`** replaces accepted values **inside the affected cells only**, then re-serialises to CSV bytes. Output name: `data.csv` → `data.redacted.csv`. Optional `.redactyl-mapping.json` when requested.
+- **`redact(...)`** replaces accepted values **inside affected Cells only**, then re-serialises to CSV with `\r\n` line endings. Output name: `data.csv` → `data.redacted.csv`. Optional `.redactyl-mapping.json` when requested.
 - Text-style **fail-open** posture: redaction does not fail closed (no PDF-style verify pass in this slice).
 
 ### Wiring
@@ -32,7 +32,8 @@ Today, `.csv` is rejected in `FileDropZone` and was explicitly out of v1 scope (
 ### Suggested module layout
 
 - `src/csv/csvParser.ts` — parse + serialise round-trip
-- `src/csv/csvParser.test.ts` — quoted fields, embedded commas/newlines, BOM, malformed input
+- `src/csv/csvParser.test.ts` — quoted fields, embedded commas/newlines, BOM, malformed input, ragged rows
+- `src/domain/locators.ts` — `makeCellIndex`, `itemCells`, `formatCsvLocator` (parallel to line/page helpers)
 - `src/document/csvDocument.ts` + `csvDocument.test.ts` — adapter through the `Document` interface
 - Extend `src/document/opener.test.ts` with CSV open + reject cases
 
@@ -40,22 +41,25 @@ Keep CSV logic out of `App` — same rule as the document-seam refactor.
 
 ## Acceptance criteria
 
-- [ ] Dropping `contacts.csv` with PII in multiple columns opens review; locators show row/column coordinates, not line numbers
-- [ ] Redacting accepted Items produces `contacts.redacted.csv` that remains valid CSV (re-parseable; quoted fields and embedded commas preserved)
-- [ ] Redacted cell values are replaced with Tokens (`<EMAIL_1>`, etc.); non-PII cells are byte-identical aside from normalised line endings if the serializer normalises them (document the choice in tests)
+- [ ] Dropping `contacts.csv` with PII in multiple columns opens review; locators show `row N, col M` coordinates, not line numbers
+- [ ] A header row on physical row 1 does not renumber data rows — PII on the first data row shows `row 2, col …`
+- [ ] Redacting accepted Items produces `contacts.redacted.csv` that remains valid CSV (re-parseable; quoted fields and embedded commas/newlines preserved)
+- [ ] Redacted cell values are replaced with Tokens (`<EMAIL_1>`, etc.); non-PII cell content is preserved (quoting may change per RFC 4180 rules when tokens introduce special characters)
 - [ ] Optional mapping checkbox produces `contacts.redactyl-mapping.json` with the same shape as the text path
 - [ ] Malformed CSV (e.g. unclosed quote) is rejected at open with a clear dropzone error; no output file
+- [ ] Ragged rows (fewer columns than the widest row) parse successfully with trailing empty cells
 - [ ] `FileDropZone` accepts `.csv` and rejects unknown extensions with an updated message listing `.csv`
-- [ ] Unit tests cover parser round-trip, adapter locate/redact/mapping, and opener dispatch — no React
+- [ ] Unit tests cover parser round-trip, cell index/locator helpers, adapter locate/redact/mapping, and opener dispatch — no React
 - [ ] `tsc` clean; full test suite green
 
 ## Blocked by
 
-None — can start once triaged. Builds on the completed document-seam work (`.scratch/document-seam/`).
+None — builds on the completed document-seam work (`.scratch/document-seam/`).
 
 ## References
 
-- Domain vocabulary: `CONTEXT.md`
+- Domain vocabulary: `CONTEXT.md` (**Cell**, CSV **Document** kind)
+- ADR: `docs/adr/0004-csv-cell-flattening-for-detect.md`
 - v1 explicit deferral: `.scratch/v1/PRD.md` ("DOCX, CSV, images — file types beyond PDF + text")
 - Current rejection site: `src/ui/FileDropZone.tsx`
 - Current opener dispatch: `src/document/opener.ts`
@@ -65,3 +69,30 @@ None — can start once triaged. Builds on the completed document-seam work (`.s
 ### Opened from Slack #new-channel (2026-06-06)
 
 Feature request: add `.csv` file type support to Redactyl.
+
+### Grill-with-docs session (2026-06-06)
+
+Resolved open queries from the PRD. Full decision table in `.scratch/csv-support/PRD.md` §Resolved decisions.
+
+**Q1 — Header row in locators?**
+Physical 1-based row/column indices. Row 1 is whatever is first in the file (often headers). No data-row renumbering and no column-name suffixes in v1. Scenario: `name,email` + `Alice,alice@x.com` → email locator is `row 2, col 2`.
+
+**Q2 — File size / row count advisory?**
+Deferred. No gate in this slice — matches text/PDF v1 posture.
+
+**Q3 — How does Detect see a CSV?**
+Flatten parsed cells row-major with `\x1f` separator; maintain offset→cell index. Recorded in ADR 0004. Rejected: plain-text fallback, per-cell Detect loops, newline row delimiters (ambiguous when cells contain `\n`).
+
+**Q4 — Where does redaction happen?**
+Inside each affected **Cell**'s string, then RFC 4180 re-serialise. Never splice the flat Detect view directly.
+
+**Q5 — Ragged rows?**
+Pad with empty cells on parse. Fail closed only on syntactic errors (unclosed quotes).
+
+**Q6 — Output line endings?**
+Normalise to `\r\n` on save; strip BOM on read.
+
+**Q7 — Factory name?**
+`createCsvDocument` — matches `createTextDocument` / `createPdfDocument`.
+
+Status moved to `ready-for-agent`.
