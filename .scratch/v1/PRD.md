@@ -355,7 +355,7 @@ No existing test code in this repo (greenfield). Test stack: Vitest (matches Vit
 - **Per-occurrence control** — unchecking individual occurrences of the same value. Naturally follows the preview pane.
 - **User-defined patterns / customer-name lists** — detector interface supports them; UI is v2.
 - **OCR for scanned PDFs** — would add Tesseract.js (~10MB WASM). Scanned PDFs are detected and refused in v1.
-- **DOCX, CSV, images** — file types beyond PDF + text. Out of v1.
+- **DOCX, images** — file types beyond PDF + text + CSV. CSV tracked in `.scratch/v1/issues/21-csv-document-adapter.md`.
 - **Pseudonymisation** — replacing PII with realistic fake values instead of `<CATEGORY_N>` tokens.
 - **Decrypting password-protected PDFs** — detected and refused.
 - **Re-substitution flow** — a UI to paste an AI response + mapping file and get back the un-redacted text. Mapping format is forward-compatible; the UI lands in v1.5.

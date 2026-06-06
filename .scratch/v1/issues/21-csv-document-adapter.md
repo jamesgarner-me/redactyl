@@ -4,13 +4,15 @@ Status: ready-for-agent
 
 ## Parent
 
-`.scratch/csv-support/PRD.md`
+`.scratch/v1/PRD.md` (Redactyl v1)
 
 ## What to build
 
 Add first-class `.csv` support via a **`CsvDocument`** adapter on the existing **Document** seam, so a dropped CSV is parsed into cells, analysed, reviewed and redacted without losing tabular structure.
 
-Today, `.csv` is rejected in `FileDropZone` and was explicitly out of v1 scope (`.scratch/v1/PRD.md` §Out of Scope). The opener's non-PDF path reads raw bytes as text (`createTextDocument`), which is unsuitable for CSV: detection spans can straddle cell boundaries, line locators mislead the reviewer, and the saved file may no longer be valid CSV.
+Today, `.csv` is rejected in `FileDropZone` and was listed out of scope in the v1 PRD (now tracked here). The opener's non-PDF path reads raw bytes as text (`createTextDocument`), which is unsuitable for CSV: detection spans can straddle cell boundaries, line locators mislead the reviewer, and the saved file may no longer be valid CSV.
+
+Treating a CSV as plain text (rename to `.txt` or bypass the dropzone) is unsafe. Users often have tabular exports — CRM dumps, support tickets, payroll spreadsheets — and need a `.redacted.csv` that round-trips as valid CSV.
 
 ### Adapter responsibilities
 
@@ -39,6 +41,34 @@ Today, `.csv` is rejected in `FileDropZone` and was explicitly out of v1 scope (
 
 Keep CSV logic out of `App` — same rule as the document-seam refactor.
 
+### Non-goals (this slice)
+
+- Excel `.xlsx` / `.xls`
+- User-selectable delimiters (comma only)
+- CSV schema inference or column-type-aware detectors
+- Header-row detection or column-name locators (physical indices only)
+- File-size or row-count advisories (deferred — same posture as text/PDF v1)
+- Re-substitution UI (unchanged — mapping format only)
+
+### Resolved decisions (grill-with-docs, 2026-06-06)
+
+| Question | Decision |
+| --- | --- |
+| Header row in locators | Physical row numbers only. Row 1 may be a header; no data-row renumbering or column-name suffixes. |
+| Max file size / row count | No advisory or hard gate in this slice. Revisit only if profiling shows a problem. |
+| Detect text view | Row-major cell join with `\x1f` separator + offset→`(row, col)` index ([ADR 0004](../../../docs/adr/0004-csv-cell-flattening-for-detect.md)). |
+| Redaction unit | Per **Cell** string replacement, then RFC 4180 re-serialise. |
+| Ragged rows | Pad short rows with empty cells; do not fail. |
+| Line endings on save | Normalise to `\r\n` per RFC 4180. |
+
+### Scenario checks
+
+- **Quoted comma:** `"Smith, Jo",jane@x.com` — email detected in col 2; comma inside col 1 preserved after redact.
+- **Embedded newline:** `"line1\nline2",secret@x.com` — detection span stays inside col 1; col 2 redacts independently.
+- **Header row:** `name,email` on row 1; PII on row 2 → locator `row 2, col 2`, not `row 1, col 2`.
+- **Repeated value across rows:** `alice@x.com` in rows 2 and 5 → one **Item**, locator `row 2, col 3, 5`.
+- **Malformed:** unclosed `"` on row 4 → open fails; no review screen.
+
 ## Acceptance criteria
 
 - [ ] Dropping `contacts.csv` with PII in multiple columns opens review; locators show `row N, col M` coordinates, not line numbers
@@ -60,7 +90,6 @@ None — builds on the completed document-seam work (`.scratch/document-seam/`).
 
 - Domain vocabulary: `CONTEXT.md` (**Cell**, CSV **Document** kind)
 - ADR: `docs/adr/0004-csv-cell-flattening-for-detect.md`
-- v1 explicit deferral: `.scratch/v1/PRD.md` ("DOCX, CSV, images — file types beyond PDF + text")
 - Current rejection site: `src/ui/FileDropZone.tsx`
 - Current opener dispatch: `src/document/opener.ts`
 
@@ -72,27 +101,8 @@ Feature request: add `.csv` file type support to Redactyl.
 
 ### Grill-with-docs session (2026-06-06)
 
-Resolved open queries from the PRD. Full decision table in `.scratch/csv-support/PRD.md` §Resolved decisions.
+Resolved open queries; decisions captured in §Resolved decisions above. Status moved to `ready-for-agent`.
 
-**Q1 — Header row in locators?**
-Physical 1-based row/column indices. Row 1 is whatever is first in the file (often headers). No data-row renumbering and no column-name suffixes in v1. Scenario: `name,email` + `Alice,alice@x.com` → email locator is `row 2, col 2`.
+### Moved from `.scratch/csv-support/` (2026-06-06)
 
-**Q2 — File size / row count advisory?**
-Deferred. No gate in this slice — matches text/PDF v1 posture.
-
-**Q3 — How does Detect see a CSV?**
-Flatten parsed cells row-major with `\x1f` separator; maintain offset→cell index. Recorded in ADR 0004. Rejected: plain-text fallback, per-cell Detect loops, newline row delimiters (ambiguous when cells contain `\n`).
-
-**Q4 — Where does redaction happen?**
-Inside each affected **Cell**'s string, then RFC 4180 re-serialise. Never splice the flat Detect view directly.
-
-**Q5 — Ragged rows?**
-Pad with empty cells on parse. Fail closed only on syntactic errors (unclosed quotes).
-
-**Q6 — Output line endings?**
-Normalise to `\r\n` on save; strip BOM on read.
-
-**Q7 — Factory name?**
-`createCsvDocument` — matches `createTextDocument` / `createPdfDocument`.
-
-Status moved to `ready-for-agent`.
+Consolidated into the v1 issue tracker; separate csv-support folder removed.
