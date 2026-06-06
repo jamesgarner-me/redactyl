@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { formatLocator, itemLines, makeLineIndex } from './locators';
+import {
+  type Cell,
+  formatCsvLocator,
+  formatLocator,
+  itemCells,
+  itemLines,
+  makeCellIndex,
+  makeLineIndex,
+} from './locators';
 import type { Item, Span } from './types';
 
 function span(start: number): Span {
@@ -46,5 +54,68 @@ describe('formatLocator', () => {
 
   it('returns an empty string when there are no lines', () => {
     expect(formatLocator([])).toBe('');
+  });
+});
+
+describe('makeCellIndex / itemCells', () => {
+  // Three cells laid out row-major in the flattened Detect text at the given
+  // start offsets — the structure CsvDocument builds.
+  const cells: Cell[] = [
+    { row: 1, col: 1, start: 0 },
+    { row: 2, col: 3, start: 10 },
+    { row: 5, col: 3, start: 30 },
+  ];
+
+  it('maps an offset back to the cell that contains it', () => {
+    const cellAt = makeCellIndex(cells);
+    expect(cellAt(0)).toEqual(cells[0]);
+    expect(cellAt(12)).toEqual(cells[1]); // inside the second cell
+    expect(cellAt(40)).toEqual(cells[2]); // past the last cell's start
+  });
+
+  it('returns the distinct cells an Item falls on, sorted row-major', () => {
+    const cellAt = makeCellIndex(cells);
+    // Two Occurrences in row 2/col 3, one in row 5/col 3 (same value down a column).
+    const item: Item = {
+      value: 'alice@x.com',
+      category: 'EMAIL',
+      spans: [span(11), span(12), span(31)],
+    };
+    expect(itemCells(item, cellAt)).toEqual([
+      { row: 2, col: 3, start: 10 },
+      { row: 5, col: 3, start: 30 },
+    ]);
+  });
+});
+
+describe('formatCsvLocator', () => {
+  it('formats a single cell as `row R, col C`', () => {
+    expect(formatCsvLocator([{ row: 2, col: 3, start: 0 }])).toBe('row 2, col 3');
+  });
+
+  it('appends further occurrence rows after the anchor cell', () => {
+    expect(
+      formatCsvLocator([
+        { row: 2, col: 3, start: 0 },
+        { row: 5, col: 3, start: 10 },
+      ]),
+    ).toBe('row 2, col 3, 5');
+  });
+
+  it('truncates past the cap (4 rows shown) with a +N suffix', () => {
+    expect(
+      formatCsvLocator([
+        { row: 2, col: 3, start: 0 },
+        { row: 5, col: 3, start: 10 },
+        { row: 7, col: 3, start: 20 },
+        { row: 9, col: 3, start: 30 },
+        { row: 11, col: 3, start: 40 },
+        { row: 13, col: 3, start: 50 },
+      ]),
+    ).toBe('row 2, col 3, 5, 7, 9 +2');
+  });
+
+  it('returns an empty string when there are no cells', () => {
+    expect(formatCsvLocator([])).toBe('');
   });
 });

@@ -27,6 +27,29 @@ describe('createDocumentOpener', () => {
     expect(result.document.allowMapping).toBe(true);
   });
 
+  it('opens a CSV file as a CSV Document with row/column locators', async () => {
+    const result = await opener.open(
+      new File(['name,email\nAlice,jane@x.com'], 'contacts.csv', { type: 'text/csv' }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.filename).toBe('contacts.csv');
+    expect(result.document.allowMapping).toBe(true);
+    const items = await deps.detect(result.document.text);
+    const email = items.find((i) => i.value === 'jane@x.com');
+    expect(email).toBeDefined();
+    expect(result.document.locate(email!)).toBe('row 2, col 2');
+  });
+
+  it('rejects a malformed CSV (unclosed quote) at open with a clear message', async () => {
+    const result = await opener.open(
+      new File(['name,email\nAlice,"unclosed'], 'broken.csv', { type: 'text/csv' }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain("broken.csv isn't valid CSV");
+  });
+
   it('opens a clean PDF as a PDF Document', async () => {
     const bytes = await buildPdf([['Reach alice@example.com here']]);
     const result = await opener.open(pdfFile(bytes));
