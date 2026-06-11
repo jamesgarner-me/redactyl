@@ -1,5 +1,7 @@
 import { extractPdf } from '../pdf/pdfExtractor';
 import { createTextDocument } from './textDocument';
+import { createCsvDocument } from './csvDocument';
+import { CsvParseError, looksLikeCsv } from '../csv/csvParser';
 import { createPdfDocument, type PdfDocumentDeps } from './pdfDocument';
 import type { Document } from './document';
 
@@ -40,7 +42,28 @@ export function createDocumentOpener(deps: PdfDocumentDeps): DocumentOpener {
             ),
           };
         }
+        if (/\.csv$/i.test(file.name)) {
+          // A syntactic parse failure (e.g. an unclosed quote) is fatal: there
+          // is no trustworthy grid to review, so fail with a clear message
+          // rather than fall back to the plain-text path.
+          try {
+            return { ok: true, document: createCsvDocument(file.name, await file.text()) };
+          } catch (err) {
+            if (err instanceof CsvParseError) {
+              return {
+                ok: false,
+                message: `${file.name} isn't valid CSV (${err.message}) Fix it, then try again.`,
+              };
+            }
+            throw err;
+          }
+        }
         const text = await file.text();
+        // Misnamed exports (e.g. `contacts.txt` that is really CSV) must not fall
+        // through to the line-based text adapter — sniff before plain-text open.
+        if (/\.txt$/i.test(file.name) && looksLikeCsv(text)) {
+          return { ok: true, document: createCsvDocument(file.name, text) };
+        }
         return { ok: true, document: createTextDocument(file.name, text) };
       } catch {
         return {

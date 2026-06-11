@@ -101,7 +101,16 @@ export async function detectNer(
   onProgress?: (processed: number, total: number) => void,
 ): Promise<ScoredSpan[]> {
   if (!pipe && !loading) return [];
-  if (!pipe) pipe = await loading!;
+  if (!pipe) {
+    try {
+      pipe = await loading!;
+    } catch {
+      // Stale cache or a GPU-less host: the warm-load from probe failed, but
+      // regex detection can still run — don't fail the whole analyze pass.
+      loading = null;
+      return [];
+    }
+  }
 
   const chunks = chunkText(text);
   const started = performance.now();

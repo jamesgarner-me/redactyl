@@ -13,7 +13,9 @@ export function TopBar({ theme, onToggleTheme, onOpenSettings, onHome }: Props) 
     <header className="topbar">
       <button type="button" className="topbar-brand" onClick={onHome} aria-label="Redactyl home, start over">
         <span className="wordmark">Redactyl</span>
-        <span className="tagline">Remove personal data from PDFs and text, entirely in your browser</span>
+        <span className="tagline">
+          Remove personal data from PDFs, text and CSVs, entirely in your browser
+        </span>
       </button>
       <div className="topbar-actions">
         <a

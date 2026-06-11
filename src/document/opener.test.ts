@@ -4,6 +4,7 @@ import type { PdfDocumentDeps } from './pdfDocument';
 import { buildPdf, buildEncryptedPdf, buildScannedPdf } from '../pdf/pdfTestUtils';
 import { runDetectors } from '../detection/patterns';
 import { spansToItems } from '../domain/items';
+import { parseCsv } from '../csv/csvParser';
 
 const deps: PdfDocumentDeps = {
   detect: (t) => spansToItems(runDetectors(t)),
@@ -25,6 +26,83 @@ describe('createDocumentOpener', () => {
     expect(result.document.filename).toBe('notes.txt');
     expect(result.document.text).toContain('jane@x.com');
     expect(result.document.allowMapping).toBe(true);
+    const items = await deps.detect(result.document.text);
+    const email = items.find((i) => i.value === 'jane@x.com');
+    expect(email).toBeDefined();
+    expect(result.document.locate(email!)).toMatch(/^ln /);
+  });
+
+  it('sniffs CSV content in a .txt file and opens it with row/column locators', async () => {
+    const result = await opener.open(
+      new File(['name,email\nAlice,jane@x.com'], 'contacts.txt', { type: 'text/plain' }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.filename).toBe('contacts.txt');
+    const items = await deps.detect(result.document.text);
+    const email = items.find((i) => i.value === 'jane@x.com');
+    expect(email).toBeDefined();
+    expect(result.document.locate(email!)).toBe('row 2, col 2');
+  });
+
+  it('redacts sniffed CSV-in-.txt via the cell adapter, preserving structure', async () => {
+    const result = await opener.open(
+      new File(
+        ['name,email\n"Smith, Jo",jane@x.com'],
+        'contacts.txt',
+        { type: 'text/plain' },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const items = await deps.detect(result.document.text);
+    const email = items.find((i) => i.value === 'jane@x.com');
+    expect(email).toBeDefined();
+    expect(result.document.locate(email!)).toBe('row 2, col 2');
+    const outcome = await result.document.redact(email!.spans, { saveMapping: false });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.outputName).toBe('contacts.redacted.txt');
+    const grid = parseCsv(await outcome.blob.text());
+    expect(grid).toEqual([
+      ['name', 'email'],
+      ['Smith, Jo', '<EMAIL_1>'],
+    ]);
+  });
+
+  it('falls back to plain text when .txt content fails CSV parse', async () => {
+    const body = 'name,email\nAlice,"unclosed';
+    const result = await opener.open(new File([body], 'notes.txt'));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const items = await deps.detect(result.document.text);
+    const alice = items.find((i) => i.value === 'Alice');
+    if (alice) {
+      expect(result.document.locate(alice)).toMatch(/^ln /);
+    }
+  });
+
+  it('opens a CSV file as a CSV Document with row/column locators', async () => {
+    const result = await opener.open(
+      new File(['name,email\nAlice,jane@x.com'], 'contacts.csv', { type: 'text/csv' }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.filename).toBe('contacts.csv');
+    expect(result.document.allowMapping).toBe(true);
+    const items = await deps.detect(result.document.text);
+    const email = items.find((i) => i.value === 'jane@x.com');
+    expect(email).toBeDefined();
+    expect(result.document.locate(email!)).toBe('row 2, col 2');
+  });
+
+  it('rejects a malformed CSV (unclosed quote) at open with a clear message', async () => {
+    const result = await opener.open(
+      new File(['name,email\nAlice,"unclosed'], 'broken.csv', { type: 'text/csv' }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain("broken.csv isn't valid CSV");
   });
 
   it('opens a clean PDF as a PDF Document', async () => {
