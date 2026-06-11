@@ -1,7 +1,7 @@
 import { extractPdf } from '../pdf/pdfExtractor';
 import { createTextDocument } from './textDocument';
 import { createCsvDocument } from './csvDocument';
-import { CsvParseError } from '../csv/csvParser';
+import { CsvParseError, looksLikeCsv } from '../csv/csvParser';
 import { createPdfDocument, type PdfDocumentDeps } from './pdfDocument';
 import type { Document } from './document';
 
@@ -59,6 +59,11 @@ export function createDocumentOpener(deps: PdfDocumentDeps): DocumentOpener {
           }
         }
         const text = await file.text();
+        // Misnamed exports (e.g. `contacts.txt` that is really CSV) must not fall
+        // through to the line-based text adapter — sniff before plain-text open.
+        if (/\.txt$/i.test(file.name) && looksLikeCsv(text)) {
+          return { ok: true, document: createCsvDocument(file.name, text) };
+        }
         return { ok: true, document: createTextDocument(file.name, text) };
       } catch {
         return {

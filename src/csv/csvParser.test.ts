@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CsvParseError, parseCsv, serialiseCsv } from './csvParser';
+import { CsvParseError, looksLikeCsv, parseCsv, serialiseCsv } from './csvParser';
 
 describe('parseCsv', () => {
   it('parses simple comma-separated rows', () => {
@@ -46,6 +46,28 @@ describe('parseCsv', () => {
 
   it('throws CsvParseError on an unclosed quoted field', () => {
     expect(() => parseCsv('a,b\nc,"unclosed')).toThrow(CsvParseError);
+  });
+});
+
+describe('looksLikeCsv', () => {
+  it('accepts a multi-row comma-separated grid', () => {
+    expect(looksLikeCsv('name,email\nAlice,alice@x.com')).toBe(true);
+  });
+
+  it('rejects single-line prose with one comma', () => {
+    expect(looksLikeCsv('Hello, world')).toBe(false);
+  });
+
+  it('rejects multi-line prose where only one line has comma-separated fields', () => {
+    expect(looksLikeCsv('Dear Sir,\n\nI am writing to you.\n\nRegards')).toBe(false);
+  });
+
+  it('rejects ragged grids where only one row reaches the widest column count', () => {
+    expect(looksLikeCsv('a,b,c\nd\ne,f')).toBe(false);
+  });
+
+  it('returns false on malformed CSV instead of throwing', () => {
+    expect(looksLikeCsv('a,b\nc,"unclosed')).toBe(false);
   });
 });
 

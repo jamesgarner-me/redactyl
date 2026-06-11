@@ -14,11 +14,15 @@ export class CsvParseError extends Error {
   }
 }
 
-// Parse a CSV string into a rectangular grid of cell strings. Throws a
-// `CsvParseError` on an unclosed quoted field; every other input parses.
-export function parseCsv(input: string): string[][] {
-  // Strip a leading UTF-8 BOM if present — it is metadata, never cell content.
-  const source = input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
+// Strip a leading UTF-8 BOM if present — it is metadata, never cell content.
+function stripBom(input: string): string {
+  return input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
+}
+
+// Parse a CSV string into rows of cell strings without padding short rows.
+// Throws a `CsvParseError` on an unclosed quoted field; every other input parses.
+function parseCsvRows(input: string): string[][] {
+  const source = stripBom(input);
 
   const rows: string[][] = [];
   let row: string[] = [];
@@ -92,7 +96,37 @@ export function parseCsv(input: string): string[][] {
     rows.push(row);
   }
 
-  return padRows(rows);
+  return rows;
+}
+
+// Parse a CSV string into a rectangular grid of cell strings. Throws a
+// `CsvParseError` on an unclosed quoted field; every other input parses.
+export function parseCsv(input: string): string[][] {
+  return padRows(parseCsvRows(input));
+}
+
+// Heuristic for misnamed `.txt` uploads: valid RFC 4180 parse plus enough
+// tabular structure (multiple rows with comma-separated fields) to avoid routing
+// prose that happens to contain an occasional comma.
+export function looksLikeCsv(input: string): boolean {
+  try {
+    const rows = parseCsvRows(input);
+    if (rows.length < 2) return false;
+
+    const widths = rows.map((row) => row.length);
+    const maxWidth = Math.max(...widths);
+    if (maxWidth < 2) return false;
+
+    const multiFieldRows = widths.filter((w) => w >= 2).length;
+    if (multiFieldRows < 2) return false;
+
+    // Require at least two rows at the widest column count so a single
+    // comma-heavy sentence in otherwise plain prose does not qualify.
+    const rowsAtMaxWidth = widths.filter((w) => w === maxWidth).length;
+    return rowsAtMaxWidth >= 2;
+  } catch {
+    return false;
+  }
 }
 
 // Pad short rows with trailing empty cells so the grid is rectangular. Ragged
