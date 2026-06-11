@@ -1,0 +1,16 @@
+{
+  "source": "contacts-csv-as-txt.txt",
+  "note": "CSV content in a .txt file — exercises content sniff + cell-safe redaction. Regex-detectable PII only (emails, IPs, credit cards); names are NER-only and not asserted here.",
+  "entities": [
+    { "value": "beshelby0@t-online.de", "category": "EMAIL", "expectDetect": true, "token": "<EMAIL_1>" },
+    { "value": "13.84.33.231", "category": "IP", "expectDetect": true, "token": "<IP_1>" },
+    { "value": "3543951842051288", "category": "CREDIT_CARD", "expectDetect": true, "token": "<CREDIT_CARD_1>" },
+    { "value": "wjelk1@miibeian.gov.cn", "category": "EMAIL", "expectDetect": true, "token": "<EMAIL_2>" },
+    { "value": "cplasteri@adobe.com", "category": "EMAIL", "expectDetect": true, "token": "<EMAIL_19>" }
+  ],
+  "csvStructure": {
+    "expectRowColumnLocators": true,
+    "preserveQuotedFields": false,
+    "sampleRowLocator": "row 2, col 3"
+  }
+}
