@@ -47,20 +47,27 @@ describe('createDocumentOpener', () => {
 
   it('redacts sniffed CSV-in-.txt via the cell adapter, preserving structure', async () => {
     const result = await opener.open(
-      new File(['"Smith, Jo",jane@x.com'], 'contacts.txt', { type: 'text/plain' }),
+      new File(
+        ['name,email\n"Smith, Jo",jane@x.com'],
+        'contacts.txt',
+        { type: 'text/plain' },
+      ),
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const items = await deps.detect(result.document.text);
     const email = items.find((i) => i.value === 'jane@x.com');
     expect(email).toBeDefined();
-    const spans = email!.spans;
-    const outcome = await result.document.redact(spans, { saveMapping: false });
+    expect(result.document.locate(email!)).toBe('row 2, col 2');
+    const outcome = await result.document.redact(email!.spans, { saveMapping: false });
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.outputName).toBe('contacts.redacted.txt');
     const grid = parseCsv(await outcome.blob.text());
-    expect(grid).toEqual([['Smith, Jo', '<EMAIL_1>']]);
+    expect(grid).toEqual([
+      ['name', 'email'],
+      ['Smith, Jo', '<EMAIL_1>'],
+    ]);
   });
 
   it('falls back to plain text when .txt content fails CSV parse', async () => {

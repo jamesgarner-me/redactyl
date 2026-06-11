@@ -107,7 +107,9 @@ export function parseCsv(input: string): string[][] {
 
 // Heuristic for misnamed `.txt` uploads: valid RFC 4180 parse plus enough
 // tabular structure (multiple rows with comma-separated fields) to avoid routing
-// prose that happens to contain an occasional comma.
+// prose that happens to contain an occasional comma. Multi-line prose where
+// every line contains a comma may still qualify — an accepted tradeoff for
+// catching renamed exports without extension sniffing on `.md`.
 export function looksLikeCsv(input: string): boolean {
   try {
     const rows = parseCsvRows(input);

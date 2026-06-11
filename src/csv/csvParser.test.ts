@@ -54,6 +54,11 @@ describe('looksLikeCsv', () => {
     expect(looksLikeCsv('name,email\nAlice,alice@x.com')).toBe(true);
   });
 
+  it('accepts BOM-prefixed and CRLF tabular content', () => {
+    expect(looksLikeCsv('\uFEFFname,email\nAlice,alice@x.com')).toBe(true);
+    expect(looksLikeCsv('a,b\r\nc,d')).toBe(true);
+  });
+
   it('rejects single-line prose with one comma', () => {
     expect(looksLikeCsv('Hello, world')).toBe(false);
   });
