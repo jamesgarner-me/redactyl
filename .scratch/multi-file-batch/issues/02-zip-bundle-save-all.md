@@ -17,7 +17,7 @@ Mappings are **not** part of this zip — they are handled separately in slice 0
 ## Acceptance criteria
 
 - [ ] An in-browser zip library is added; `pnpm build` and `pnpm preview` remain cross-origin-isolated and green
-- [ ] The receipt offers a "Save all" that downloads `my-redacted-documents-YYYYMMDD.zip` (local date) containing every redacted output
+- [ ] The receipt offers a "Save all" that downloads `my-redacted-documents-YYYYMMDD.zip` (local date) containing every succeeded redacted output
 - [ ] Per-file ↓ saves from slice 01 still work alongside "Save all"
 - [ ] Duplicate output names within the zip are disambiguated deterministically; no file is dropped
 - [ ] A Batch of one still offers the per-file save; "Save all" of one file produces a valid single-entry zip
