@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createDocumentOpener } from './opener';
 import type { PdfDocumentDeps } from './pdfDocument';
@@ -43,6 +45,24 @@ describe('createDocumentOpener', () => {
     const email = items.find((i) => i.value === 'jane@x.com');
     expect(email).toBeDefined();
     expect(result.document.locate(email!)).toBe('row 2, col 2');
+  });
+
+  // Regression guard for GitHub #11 / the e2e contacts-csv-as-txt fixture: a real
+  // multi-row export renamed to .txt must open through the CSV adapter (row/col
+  // locators), not the line-based text path (ln …).
+  it('sniffs the e2e contacts-csv-as-txt sample as CSV, not plain text', async () => {
+    const samplePath = join(process.cwd(), 'test/e2e/samples/contacts-csv-as-txt.txt');
+    const body = readFileSync(samplePath, 'utf8');
+    const result = await opener.open(
+      new File([body], 'contacts-csv-as-txt.txt', { type: 'text/plain' }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const items = await deps.detect(result.document.text);
+    const email = items.find((i) => i.value === 'beshelby0@t-online.de');
+    expect(email).toBeDefined();
+    expect(result.document.locate(email!)).toMatch(/^row \d+, col \d+/);
+    expect(result.document.locate(email!)).not.toMatch(/^ln /);
   });
 
   it('redacts sniffed CSV-in-.txt via the cell adapter, preserving structure', async () => {

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   type Cell,
+  clampSpanToCell,
   formatCsvLocator,
   formatLocator,
   itemCells,
   itemLines,
   makeCellIndex,
+  makeCellResolver,
   makeLineIndex,
 } from './locators';
 import type { Item, Span } from './types';
@@ -85,6 +87,41 @@ describe('makeCellIndex / itemCells', () => {
       { row: 2, col: 3, start: 10 },
       { row: 5, col: 3, start: 30 },
     ]);
+  });
+});
+
+describe('makeCellResolver / clampSpanToCell', () => {
+  // Two adjacent cells with a one-character separator gap between them, the
+  // shape CsvDocument builds: "John Smith" then ",", then "jane@x.com".
+  //   offsets:  0..9 = cell A, 10 = separator, 11..20 = cell B
+  const cells: Cell[] = [
+    { row: 2, col: 1, start: 0, end: 10 },
+    { row: 2, col: 2, start: 11, end: 21 },
+  ];
+
+  it('snaps a separator-gap offset FORWARD to the cell it precedes', () => {
+    const resolve = makeCellResolver(cells);
+    // Offset 10 sits on the separator — a separator-glued NER token resolves
+    // here. It must map to cell B (the one it precedes), not cell A.
+    expect(resolve(10)).toEqual(cells[1]);
+    // Offsets inside a cell still resolve to that cell.
+    expect(resolve(0)).toEqual(cells[0]);
+    expect(resolve(5)).toEqual(cells[0]);
+    expect(resolve(11)).toEqual(cells[1]);
+    expect(resolve(20)).toEqual(cells[1]);
+  });
+
+  it('clamps a span to a single cell, trimming a leading-separator anchor into the cell', () => {
+    // The exact name-leak shape: the span starts on the separator (10) and runs
+    // into cell B. It must clamp to cell B's content, never touching cell A.
+    const clamped = clampSpanToCell(cells, { start: 10, end: 21 });
+    expect(clamped).toEqual({ cell: cells[1], start: 11, end: 21 });
+  });
+
+  it('clamps a straddling span to its first cell, never corrupting the next', () => {
+    // A span that spills past cell A's end is trimmed to cell A.
+    const clamped = clampSpanToCell(cells, { start: 0, end: 21 });
+    expect(clamped).toEqual({ cell: cells[0], start: 0, end: 10 });
   });
 });
 

@@ -20,6 +20,15 @@ export type RedactionOutcome =
     }
   | { ok: false; message: string };
 
+// The outcome of a source-specific pass over the shared detector's Items.
+export interface RefinedDetection {
+  items: Item[];
+  // A non-blocking advisory to surface in review (e.g. a CSV name column the
+  // model recognised no names in). Distinct from `safetyWarning`, which is a
+  // hard, redaction-blocking alert.
+  advisory?: string;
+}
+
 export interface Document {
   readonly filename: string;
   readonly text: string;
@@ -28,6 +37,11 @@ export interface Document {
   // The source-specific locator for an Item's Occurrences: line for text,
   // row/column for CSV, page for PDF.
   locate(item: Item): string;
+  // Optional source-specific refinement of the shared detector's Items, run once
+  // after Detect. The CSV adapter uses it to treat values in name-titled columns
+  // as names (catching low-context names the model misses) and to advise when it
+  // had to. Text and PDF omit it — their Items pass straight through.
+  refineDetection?(items: Item[]): RefinedDetection;
   redact(accepted: Span[], opts: { saveMapping: boolean }): Promise<RedactionOutcome>;
 }
 
