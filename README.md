@@ -41,7 +41,7 @@ AI prompt.
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'background':'#06223f','primaryColor':'#0a3a70','primaryTextColor':'#dbe4ee','primaryBorderColor':'#3e7cb1','lineColor':'#81a4cd','secondaryColor':'#054a91','tertiaryColor':'#054a91','fontFamily':'Inter, system-ui, sans-serif','fontSize':'13px'}}}%%
 flowchart TD
-    drop["Drop .pdf / .txt / .md"] --> extract["Extract text<br/>(+ glyph boxes for PDFs)"]
+    drop["Drop .pdf / .txt / .md / .csv"] --> extract["Extract text<br/>(+ glyph boxes for PDFs)"]
     extract --> safety{"Safety checks<br/>encrypted? scanned? garbled?"}
     safety -- "any fail" --> blocked["⛔ No output produced<br/>partial results shown"]
     safety -- "ok" --> detect["Detect<br/>regex + NER layers"]
