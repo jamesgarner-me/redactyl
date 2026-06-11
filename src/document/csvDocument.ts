@@ -39,7 +39,8 @@ function flatten(rows: string[][]): { text: string; cells: FlatCell[] } {
   return { text, cells };
 }
 
-// The CSV Document adapter (.csv). Parsed into cells at open time; Detect runs on
+// The CSV Document adapter (.csv and sniffed tabular .txt). Parsed into cells at
+// open time; Detect runs on
 // the flattened text, locators report physical row/column, and redaction rewrites
 // accepted values inside their Cells before re-serialising to valid CSV. Mapping
 // is offered (allowMapping) and, like text, redaction never fails closed.

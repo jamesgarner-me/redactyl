@@ -1,6 +1,6 @@
 # CSV Document adapter — parse, locate by row/column, redact in place
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 
@@ -10,9 +10,9 @@ Status: ready-for-agent
 
 Add first-class `.csv` support via a **`CsvDocument`** adapter on the existing **Document** seam, so a dropped CSV is parsed into cells, analysed, reviewed and redacted without losing tabular structure.
 
-Today, `.csv` is rejected in `FileDropZone` and was listed out of scope in the v1 PRD (now tracked here). The opener's non-PDF path reads raw bytes as text (`createTextDocument`), which is unsuitable for CSV: detection spans can straddle cell boundaries, line locators mislead the reviewer, and the saved file may no longer be valid CSV.
+Before delivery, `.csv` was rejected in `FileDropZone` and the opener's non-PDF path read raw bytes as text (`createTextDocument`), which is unsuitable for CSV: detection spans can straddle cell boundaries, line locators mislead the reviewer, and the saved file may no longer be valid CSV.
 
-Treating a CSV as plain text (rename to `.txt` or bypass the dropzone) is unsafe. Users often have tabular exports — CRM dumps, support tickets, payroll spreadsheets — and need a `.redacted.csv` that round-trips as valid CSV.
+Misnamed exports (CSV renamed to `.txt`) are handled separately in `.scratch/v1/issues/22-csv-txt-content-sniff.md` (GitHub #11).
 
 ### Adapter responsibilities
 
@@ -27,17 +27,17 @@ Treating a CSV as plain text (rename to `.txt` or bypass the dropzone) is unsafe
 
 ### Wiring
 
-- `createDocumentOpener`: dispatch `/\.csv$/i` to `createCsvDocument(...)` before the generic text fallback.
+- `createDocumentOpener`: dispatch `/\.csv$/i` to `createCsvDocument(...)` before the generic text fallback; for `/\.txt$/i`, content-sniff with `looksLikeCsv()` before text fallback (see issue 22 / GitHub #11).
 - `FileDropZone`: add `.csv` to `ACCEPTED`, the `accept` attribute, type chips, and the unsupported-type message.
-- Copy/marketing strings that list supported types (tagline, intro, tests) updated to mention `.csv` where they currently say `.pdf`, `.txt` and `.md` only.
+- Copy/marketing strings that list supported types (tagline, intro, tests) updated to mention `.csv` where they previously said `.pdf`, `.txt` and `.md` only.
 
-### Suggested module layout
+### Delivered module layout
 
-- `src/csv/csvParser.ts` — parse + serialise round-trip
-- `src/csv/csvParser.test.ts` — quoted fields, embedded commas/newlines, BOM, malformed input, ragged rows
+- `src/csv/csvParser.ts` — parse + serialise round-trip + `looksLikeCsv` heuristic (issue 22)
+- `src/csv/csvParser.test.ts` — quoted fields, embedded commas/newlines, BOM, malformed input, ragged rows, sniff heuristic
 - `src/domain/locators.ts` — `makeCellIndex`, `itemCells`, `formatCsvLocator` (parallel to line/page helpers)
 - `src/document/csvDocument.ts` + `csvDocument.test.ts` — adapter through the `Document` interface
-- Extend `src/document/opener.test.ts` with CSV open + reject cases
+- `src/document/opener.test.ts` — CSV open + reject + `.txt` sniff cases
 
 Keep CSV logic out of `App` — same rule as the document-seam refactor.
 
@@ -49,6 +49,7 @@ Keep CSV logic out of `App` — same rule as the document-seam refactor.
 - Header-row detection or column-name locators (physical indices only)
 - File-size or row-count advisories (deferred — same posture as text/PDF v1)
 - Re-substitution UI (unchanged — mapping format only)
+- Content sniffing on `.md` (deferred — see issue 22)
 
 ### Resolved decisions (grill-with-docs, 2026-06-06)
 
@@ -71,16 +72,16 @@ Keep CSV logic out of `App` — same rule as the document-seam refactor.
 
 ## Acceptance criteria
 
-- [ ] Dropping `contacts.csv` with PII in multiple columns opens review; locators show `row N, col M` coordinates, not line numbers
-- [ ] A header row on physical row 1 does not renumber data rows — PII on the first data row shows `row 2, col …`
-- [ ] Redacting accepted Items produces `contacts.redacted.csv` that remains valid CSV (re-parseable; quoted fields and embedded commas/newlines preserved)
-- [ ] Redacted cell values are replaced with Tokens (`<EMAIL_1>`, etc.); non-PII cell content is preserved (quoting may change per RFC 4180 rules when tokens introduce special characters)
-- [ ] Optional mapping checkbox produces `contacts.redactyl-mapping.json` with the same shape as the text path
-- [ ] Malformed CSV (e.g. unclosed quote) is rejected at open with a clear dropzone error; no output file
-- [ ] Ragged rows (fewer columns than the widest row) parse successfully with trailing empty cells
-- [ ] `FileDropZone` accepts `.csv` and rejects unknown extensions with an updated message listing `.csv`
-- [ ] Unit tests cover parser round-trip, cell index/locator helpers, adapter locate/redact/mapping, and opener dispatch — no React
-- [ ] `tsc` clean; full test suite green
+- [x] Dropping `contacts.csv` with PII in multiple columns opens review; locators show `row N, col M` coordinates, not line numbers — `csvDocument.test.ts`, `opener.test.ts`
+- [x] A header row on physical row 1 does not renumber data rows — PII on the first data row shows `row 2, col …` — `csvDocument.test.ts`
+- [x] Redacting accepted Items produces `contacts.redacted.csv` that remains valid CSV (re-parseable; quoted fields and embedded commas/newlines preserved) — `csvDocument.test.ts`
+- [x] Redacted cell values are replaced with Tokens (`<EMAIL_1>`, etc.); non-PII cell content is preserved — `csvDocument.test.ts`
+- [x] Optional mapping checkbox produces `contacts.redactyl-mapping.json` with the same shape as the text path — `csvDocument.test.ts`
+- [x] Malformed CSV (e.g. unclosed quote) is rejected at open with a clear dropzone error; no output file — `opener.test.ts`
+- [x] Ragged rows (fewer columns than the widest row) parse successfully with trailing empty cells — `csvParser.test.ts`
+- [x] `FileDropZone` accepts `.csv` and rejects unknown extensions with an updated message listing `.csv` — `FileDropZone.tsx`
+- [x] Unit tests cover parser round-trip, cell index/locator helpers, adapter locate/redact/mapping, and opener dispatch — `csvParser.test.ts`, `locators` via adapter tests, `csvDocument.test.ts`, `opener.test.ts`
+- [x] `tsc` clean; full test suite green
 
 ## Blocked by
 
@@ -90,8 +91,9 @@ None — builds on the completed document-seam work (`.scratch/document-seam/`).
 
 - Domain vocabulary: `CONTEXT.md` (**Cell**, CSV **Document** kind)
 - ADR: `docs/adr/0004-csv-cell-flattening-for-detect.md`
-- Current rejection site: `src/ui/FileDropZone.tsx`
-- Current opener dispatch: `src/document/opener.ts`
+- Misnamed `.txt` sniff: `.scratch/v1/issues/22-csv-txt-content-sniff.md` (GitHub #11)
+- Dropzone: `src/ui/FileDropZone.tsx`
+- Opener dispatch: `src/document/opener.ts`
 
 ## Comments
 
@@ -106,3 +108,11 @@ Resolved open queries; decisions captured in §Resolved decisions above. Status 
 ### Moved from `.scratch/csv-support/` (2026-06-06)
 
 Consolidated into the v1 issue tracker; separate csv-support folder removed.
+
+### Implemented (2026-06-11, PR #13)
+
+- `CsvDocument` adapter with `\x1f` cell flattening, row/column locators, and cell-boundary-safe redaction.
+- RFC 4180 parser/serialiser in `src/csv/csvParser.ts`; cell locator helpers in `src/domain/locators.ts`.
+- Opener dispatches `.csv` to `createCsvDocument`; malformed `.csv` fails closed at open.
+- `FileDropZone` and `TopBar` copy updated to list `.csv`.
+- Content sniffing for misnamed `.txt` files delivered in issue 22 (same PR).

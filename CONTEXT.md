@@ -6,7 +6,7 @@ A browser-only tool that finds personal data in PDFs, text files and CSV exports
 
 **Document**:
 The opened file the user is redacting — its extracted text together with whatever the source format needs to locate **Occurrences** and produce a sanitised copy. **Detect** runs on a Document's text; **Redact** produces a new Document of the same kind.
-_Kinds_: **text** (`.txt` / `.md`), **CSV** (`.csv`) and **PDF**. The kind decides how Occurrences are located (line vs row/column vs page) and whether a **Mapping** sidecar is offered (text and CSV; not PDF).
+_Kinds_: **text** (`.txt` / `.md`), **CSV** (`.csv`, or tabular comma-separated content in a `.txt` file detected at open time — see [ADR 0004](./docs/adr/0004-csv-cell-flattening-for-detect.md)) and **PDF**. The kind decides how Occurrences are located (line vs row/column vs page) and whether a **Mapping** sidecar is offered (text and CSV; not PDF). A sniffed `.txt` keeps its original filename on save (`contacts.txt` → `contacts.redacted.txt`) even though redaction uses the CSV cell adapter.
 _Avoid_: file (the raw upload before extraction), input.
 
 **Cell**:

@@ -1,8 +1,8 @@
 // The Document seam — see CONTEXT.md. A Document is the opened file under
 // redaction: its extracted text plus whatever the source kind needs to locate
 // Occurrences and produce a sanitised copy. Detect runs on `text`; `redact`
-// produces the output. Two adapters implement this: TextDocument and (later)
-// PdfDocument. App holds a Document and never branches on source.
+// produces the output. Three adapters implement this: TextDocument, CsvDocument,
+// and PdfDocument. App holds a Document and never branches on source.
 
 import type { Item, Span } from '../domain/types';
 
@@ -26,7 +26,7 @@ export interface Document {
   readonly allowMapping: boolean;
   readonly safetyWarning?: string;
   // The source-specific locator for an Item's Occurrences: line for text,
-  // page for PDF.
+  // row/column for CSV, page for PDF.
   locate(item: Item): string;
   redact(accepted: Span[], opts: { saveMapping: boolean }): Promise<RedactionOutcome>;
 }

@@ -21,7 +21,7 @@ A static web app — Redactyl — that runs entirely in the browser with no back
 
 The flow:
 
-1. Drop a `.pdf`, `.txt`, or `.md` file
+1. Drop a `.pdf`, `.txt`, `.md`, or `.csv` file (tabular comma-separated content in a misnamed `.txt` is also opened via the CSV adapter — see issue 22)
 2. Redactyl extracts text (for PDFs, with bounding-box positions)
 3. Detection runs in two layers: deterministic regex (emails, phones, SSNs, credit cards, IBANs, IPs, URLs, dates, common API secret formats) and an NER model in a Web Worker (people, addresses, account numbers)
 4. Detected entities are shown as a flat list, grouped by category, with checkboxes (all pre-checked)
@@ -276,9 +276,9 @@ A persistent, quiet top bar across every screen:
 - *Error:* clear message (network / disk) + **Retry**.
 - *Ready:* advances to the dropzone; on return visits the cache probe skips this screen entirely.
 
-**2 · Dropzone** — the **whole canvas** is the drop target ("Drop a file here / or / Choose a file…", chips `.pdf .txt .md`). **Single file only.** Invalid drops are **rejected inline** and keep the user on the dropzone:
+**2 · Dropzone** — the **whole canvas** is the drop target ("Drop a file here / or / Choose a file…", chips `.pdf .txt .md .csv`). **Single file only.** Invalid drops are **rejected inline** and keep the user on the dropzone:
 - Multiple files / a folder → "One file at a time in v1 — you dropped N files."
-- Unsupported type → "Redactyl handles .pdf, .txt and .md. \"photo.png\" isn't supported."
+- Unsupported type → "Redactyl handles .pdf, .txt, .md and .csv. \"photo.png\" isn't supported."
 
 **3 · Analyzing** (interim) — the dropzone is replaced by a minimal centred spinner with the filename and `Analyzing…`. Resolves to the review list, the empty state, or a safety state.
 
@@ -287,7 +287,7 @@ A persistent, quiet top bar across every screen:
 - **List rows** (granular, *not* bucketed): `☑ checkbox · CATEGORY · value · N× · locator`.
   - All rows **pre-checked** by default (one-click "redact all"; unwanted buckets dropped via the strip chip).
   - **Value masking:** `SECRET` and `ID`-bucket values are masked with a recognisable hint (prefix / last-4: `sk-live-•••••8a2f`, `••• •• 4421`) and a per-row **eye** to reveal on demand. All other categories shown in clear so false positives are judgeable.
-  - **Locator:** PDFs show pages (`p. 1, 4, 7`); text shows line numbers (`ln 12, 88`).
+  - **Locator:** PDFs show pages (`p. 1, 4, 7`); text shows line numbers (`ln 12, 88`); CSV (and sniffed tabular `.txt`) shows physical row/column (`row 2, col 3`).
   - **Two opt-out actions** (see `CONTEXT.md`): unchecking = **Exclude** (it *is* PII, skip this run — row greyed, stays, strip count unchanged, headline −1); the row's **×** = **Dismiss** (not PII — row leaves the list, strip count −1, recoverable via a footer "N dismissed · show").
 - **Footer:** `▸ Advanced` (collapsed) containing only the off-by-default **"Also save a re-identification mapping"** checkbox + its "anyone with this file can reverse the redaction" warning; the live count `13 items · 25 occurrences`; and the primary **`Redact →`** button (accent).
 - **Empty state** (no PII found): a calm `✓ No personal data detected in <file>` panel with an explicit honesty caveat ("detection isn't perfect — eyeball your file before pasting") and a `Redact another file` CTA. **No output file is produced.**
@@ -355,7 +355,7 @@ No existing test code in this repo (greenfield). Test stack: Vitest (matches Vit
 - **Per-occurrence control** — unchecking individual occurrences of the same value. Naturally follows the preview pane.
 - **User-defined patterns / customer-name lists** — detector interface supports them; UI is v2.
 - **OCR for scanned PDFs** — would add Tesseract.js (~10MB WASM). Scanned PDFs are detected and refused in v1.
-- **DOCX, images** — file types beyond PDF + text + CSV. CSV tracked in `.scratch/v1/issues/21-csv-document-adapter.md`.
+- **DOCX, images** — file types beyond PDF + text + CSV (CSV delivered in issue 21; misnamed `.txt` sniff in issue 22).
 - **Pseudonymisation** — replacing PII with realistic fake values instead of `<CATEGORY_N>` tokens.
 - **Decrypting password-protected PDFs** — detected and refused.
 - **Re-substitution flow** — a UI to paste an AI response + mapping file and get back the un-redacted text. Mapping format is forward-compatible; the UI lands in v1.5.
