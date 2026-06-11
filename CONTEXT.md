@@ -9,6 +9,10 @@ The opened file the user is redacting — its extracted text together with whate
 _Kinds_: **text** (`.txt` / `.md`), **CSV** (`.csv`, or tabular comma-separated content in a `.txt` file detected at open time — see [ADR 0004](./docs/adr/0004-csv-cell-flattening-for-detect.md)) and **PDF**. The kind decides how Occurrences are located (line vs row/column vs page) and whether a **Mapping** sidecar is offered (text and CSV; not PDF). A sniffed `.txt` keeps its original filename on save (`contacts.txt` → `contacts.redacted.txt`) even though redaction uses the CSV cell adapter.
 _Avoid_: file (the raw upload before extraction), input.
 
+**Batch**:
+An ordered set of **Documents** the user opened together in one go. The user works through them one Document at a time — each is **Detected**, reviewed and **Redacted** independently (no cross-Document grouping) — and the redacted outputs are taken away together. A Batch of one is just the single-file flow.
+_Avoid_: queue, set, session, job.
+
 **Cell**:
 A single field in a **CSV** **Document** — one row/column intersection. The atomic unit for CSV occurrence location and redaction; **Detect** still runs on the Document's flattened `text`, but **Redact** replaces values inside Cells, not across cell boundaries.
 _Avoid_: field, column value.
@@ -62,6 +66,7 @@ Optional sidecar file recording `Token → original value`. Off by default.
 
 ## Relationships
 
+- A **Batch** contains one or more **Documents**; each is reviewed and redacted independently of the others.
 - A **Detect** pass produces **Spans**; Spans sharing a value collapse into one **Entity** (Item).
 - An **Item** has one or more **Occurrences** (Spans) and exactly one **Category**.
 - A **Category** belongs to exactly one display **Bucket**.
