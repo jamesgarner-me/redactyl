@@ -25,7 +25,7 @@ import { sampleReview } from './demo/sampleDocument';
 type Screen =
   | { name: 'dropzone'; error?: string }
   | { name: 'analyzing'; filename: string; progress?: { processed: number; total: number } }
-  | { name: 'review'; id: number; document: Document; items: Item[] }
+  | { name: 'review'; id: number; document: Document; items: Item[]; advisory?: string }
   | { name: 'redacting'; filename: string }
   | {
       name: 'receipt';
@@ -66,12 +66,22 @@ export default function App() {
   // returns user-facing Items directly — no grouping step here.
   async function analyze(doc: Document) {
     setScreen({ name: 'analyzing', filename: doc.filename });
-    const items = await modelWorker.detector.detect(doc.text, {
+    const detected = await modelWorker.detector.detect(doc.text, {
       regex: regexEnabledRef.current,
       onProgress: (processed, total) =>
         setScreen((s) => (s.name === 'analyzing' ? { ...s, progress: { processed, total } } : s)),
     });
-    setScreen({ name: 'review', id: ++runIdRef.current, document: doc, items });
+    // Let the Document refine the shared detection (CSV fills in names the model
+    // missed in name-titled columns and may raise a non-blocking advisory).
+    const refined = doc.refineDetection?.(detected);
+    const items = refined?.items ?? detected;
+    setScreen({
+      name: 'review',
+      id: ++runIdRef.current,
+      document: doc,
+      items,
+      advisory: refined?.advisory,
+    });
   }
 
   async function handleFile(file: File) {
@@ -228,6 +238,7 @@ export default function App() {
             locate={screen.document.locate}
             allowMapping={screen.document.allowMapping}
             safetyWarning={screen.document.safetyWarning}
+            advisory={screen.advisory}
             onRedact={handleRedact}
             onRedactAnother={() => setScreen({ name: 'dropzone' })}
           />

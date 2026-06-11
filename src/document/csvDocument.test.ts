@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCsvDocument } from './csvDocument';
 import { parseCsv } from '../csv/csvParser';
 import { spansToItems } from '../domain/items';
+import { nerSpansFrom, type NerToken } from '../detection/nerSpans';
 import type { Span } from '../domain/types';
 
 // Build EMAIL spans for every verbatim occurrence of `value` in the Document's
@@ -14,6 +15,119 @@ function emailSpans(text: string, value: string): Span[] {
   }
   return spans;
 }
+
+describe('CsvDocument — name-leak regression', () => {
+  // The reported bug: a redacted CSV still leaked people's names. The model
+  // detects the name fine, but the cell separator gets glued onto the front of
+  // the NER token (and the model returns no offsets), so the token resolves to
+  // the *separator's* offset. The old "largest start ≤ offset" cell lookup then
+  // maps that offset to the PREVIOUS cell, rewriting the wrong cell and leaving
+  // the real name untouched. This drives that exact shape through the real
+  // span-resolution (`nerSpansFrom`) and the document's redaction.
+  it('redacts the name in its own cell when the NER token carries the leading cell separator', async () => {
+    const doc = createCsvDocument('contacts.csv', 'id,name\n1,John Smith');
+    const name = 'John Smith';
+    const at = doc.text.indexOf(name);
+    // The character the flattening places immediately before the cell — the one
+    // the tokeniser folds into the entity. Derived from the document so the test
+    // stays honest to whatever separator the adapter uses.
+    const separator = doc.text[at - 1];
+    const tokens: NerToken[] = [
+      // No start/end (the model omits them on separator-glued tokens), forcing
+      // the indexOf fallback that anchors the span on the separator.
+      { entity_group: 'private_person', score: 0.99, word: separator + name },
+    ];
+    const spans = nerSpansFrom(tokens, doc.text);
+
+    const outcome = await doc.redact(spans, { saveMapping: false });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const grid = parseCsv(await outcome.blob.text());
+    // The name cell (row 2, col 2) is tokenised; the id cell is untouched.
+    expect(grid).toEqual([
+      ['id', 'name'],
+      ['1', '<PERSON_1>'],
+    ]);
+  });
+
+  it('flattens rows with newlines (so chunking can split on lines) and never the unit separator', () => {
+    // The old \x1f join corrupted NER boundaries and left the text newline-free;
+    // the layout is now CSV-shaped so the chunker can break between rows.
+    const doc = createCsvDocument('grid.csv', 'a,b\n1,2\n3,4');
+    expect(doc.text).toContain('\n');
+    expect(doc.text).not.toContain('\x1f');
+  });
+});
+
+describe('CsvDocument — name-column refinement', () => {
+  it('treats every value in a Name column as PERSON when the model recognised none', async () => {
+    const doc = createCsvDocument('people.csv', 'id,name\n1,John Smith\n2,Jane Doe');
+    // The shared detector found nothing — the column title is the only signal.
+    const refined = doc.refineDetection!([]);
+
+    expect(refined.items.map((i) => [i.category, i.value])).toEqual([
+      ['PERSON', 'John Smith'],
+      ['PERSON', 'Jane Doe'],
+    ]);
+    // The locator points at the physical cell, not a line.
+    const john = refined.items.find((i) => i.value === 'John Smith')!;
+    expect(doc.locate(john)).toBe('row 2, col 2');
+
+    // Each name redacts inside its own cell, end-to-end.
+    const outcome = await doc.redact(
+      refined.items.flatMap((i) => i.spans),
+      { saveMapping: false },
+    );
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(parseCsv(await outcome.blob.text())).toEqual([
+      ['id', 'name'],
+      ['1', '<PERSON_1>'],
+      ['2', '<PERSON_2>'],
+    ]);
+  });
+
+  it('advises when a Name column held values but the model recognised no names', () => {
+    const doc = createCsvDocument('people.csv', 'id,name\n1,John Smith\n2,Jane Doe');
+    const refined = doc.refineDetection!([]);
+    expect(refined.advisory).toBeDefined();
+    expect(refined.advisory).toContain('"name"');
+    expect(refined.advisory).toContain("people's names");
+  });
+
+  it('fills in names the model missed without advising when it caught at least one', () => {
+    const doc = createCsvDocument('people.csv', 'id,name\n1,John Smith\n2,Jane Doe');
+    // The model caught John but (non-deterministically) missed Jane.
+    const at = doc.text.indexOf('John Smith');
+    const modelItems = spansToItems([
+      { start: at, end: at + 'John Smith'.length, category: 'PERSON', value: 'John Smith' },
+    ]);
+    const refined = doc.refineDetection!(modelItems);
+
+    // No advisory — the model recognised the column. Jane is still filled in.
+    expect(refined.advisory).toBeUndefined();
+    const names = refined.items
+      .filter((i) => i.category === 'PERSON')
+      .map((i) => i.value)
+      .sort();
+    expect(names).toEqual(['Jane Doe', 'John Smith']);
+  });
+
+  it('leaves Items untouched and never advises when there is no name column', () => {
+    const doc = createCsvDocument('contacts.csv', 'id,email\n1,a@x.com');
+    const items = spansToItems(emailSpans(doc.text, 'a@x.com'));
+    const refined = doc.refineDetection!(items);
+    expect(refined.advisory).toBeUndefined();
+    expect(refined.items).toEqual(items);
+  });
+
+  it('does not treat a non-person "name" column (e.g. filename) as people', () => {
+    const doc = createCsvDocument('files.csv', 'id,filename\n1,report.pdf');
+    const refined = doc.refineDetection!([]);
+    expect(refined.items).toEqual([]);
+    expect(refined.advisory).toBeUndefined();
+  });
+});
 
 describe('CsvDocument', () => {
   it('exposes text-source capabilities (mapping allowed, no safety warning)', () => {

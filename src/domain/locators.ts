@@ -68,12 +68,17 @@ export interface Cell {
   col: number;
   // Offset of the cell's first character in the flattened Detect text.
   start: number;
+  // Offset just past the cell's last character. Optional for locator-only
+  // callers; the CSV adapter always sets it so a detection offset that lands in
+  // the gap *between* cells (a separator the tokeniser glued onto an entity) can
+  // be snapped into the cell it precedes rather than the previous one.
+  end?: number;
 }
 
 // The CSV analogue of makeLineIndex/makePageIndex: map a character offset in the
-// flattened (unit-separator-joined) Detect text back to its Cell. Cells arrive
-// in row-major order, so their `start`s are sorted; a lookup binary-searches the
-// largest start <= offset.
+// flattened Detect text back to its Cell. Cells arrive in row-major order, so
+// their `start`s are sorted; a lookup binary-searches the largest start <=
+// offset.
 export function makeCellIndex(cells: Cell[]): (offset: number) => Cell | undefined {
   return (offset) => {
     if (cells.length === 0) return undefined;
@@ -86,6 +91,66 @@ export function makeCellIndex(cells: Cell[]): (offset: number) => Cell | undefin
     }
     return cells[lo];
   };
+}
+
+// The index of the cell with the largest start <= offset, or -1 when offset
+// precedes the first cell. Shared by the resolver and the clamp below.
+function cellIndexAt(cells: Cell[], offset: number): number {
+  if (cells.length === 0 || offset < cells[0].start) return -1;
+  let lo = 0;
+  let hi = cells.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (cells[mid].start <= offset) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+// Resolve an offset to its owning cell with a *forward snap*: when the offset
+// falls in the gap after a cell (on a separator), it belongs to the cell that
+// separator precedes, not the one before it. This is the fix for the CSV
+// name-leak — a separator-glued NER token resolved to the separator's offset,
+// which the plain "largest start <= offset" lookup mapped to the previous cell.
+function resolveCell<T extends Cell>(cells: T[], offset: number): { cell: T; index: number } | undefined {
+  if (cells.length === 0) return undefined;
+  const found = cellIndexAt(cells, offset);
+  const index = found < 0 ? 0 : found;
+  const cell = cells[index];
+  const end = cell.end ?? cells[index + 1]?.start ?? Infinity;
+  // Inside the cell's own content (or before the first cell) — keep it.
+  if (found < 0 || offset < end) return { cell, index };
+  // In the trailing gap — snap to the next cell it precedes, if any.
+  const next = cells[index + 1];
+  return next ? { cell: next, index: index + 1 } : { cell, index };
+}
+
+// A snap-forward cell resolver for locators: returns the Cell an offset belongs
+// to, never the previous cell when the offset sits on a separator.
+export function makeCellResolver<T extends Cell>(cells: T[]): (offset: number) => T | undefined {
+  return (offset) => resolveCell(cells, offset)?.cell;
+}
+
+// Clamp a span to a single cell: snap its start into the owning cell and bound
+// its end to that cell's end. Guarantees a detection can only ever rewrite one
+// cell — a span that straddles a boundary is trimmed to its first cell rather
+// than corrupting the next. A degenerate range (the whole span sat in the gap)
+// falls back to the full cell, which is the safe direction for a redactor.
+export function clampSpanToCell<T extends Cell>(
+  cells: T[],
+  span: { start: number; end: number },
+): { cell: T; start: number; end: number } | undefined {
+  const resolved = resolveCell(cells, span.start);
+  if (!resolved) return undefined;
+  const { cell, index } = resolved;
+  const cellEnd = cell.end ?? cells[index + 1]?.start ?? Infinity;
+  let start = Math.max(span.start, cell.start);
+  let end = Math.min(span.end, cellEnd);
+  if (end <= start) {
+    start = cell.start;
+    end = cellEnd;
+  }
+  return { cell, start, end };
 }
 
 // The distinct Cells an Item's Occurrences fall on, sorted row-major. A Span

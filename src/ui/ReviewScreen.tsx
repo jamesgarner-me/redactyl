@@ -17,6 +17,9 @@ interface Props {
   // When set (a scanned/garbled PDF), a red banner is pinned above the results
   // and redaction is hard-disabled — the file can't be safely sanitised.
   safetyWarning?: string;
+  // A non-blocking advisory (e.g. a CSV name column the model recognised no
+  // names in). Shown as an amber notice; redaction stays enabled.
+  advisory?: string;
   onRedact: (acceptedSpans: Span[], saveMapping: boolean) => void;
   onRedactAnother: () => void;
 }
@@ -36,6 +39,7 @@ export function ReviewScreen({
   locate,
   allowMapping,
   safetyWarning,
+  advisory,
   onRedact,
   onRedactAnother,
 }: Props) {
@@ -62,7 +66,7 @@ export function ReviewScreen({
   // The reassuring "all clear" empty state is only honest when nothing blocked
   // detection. A scanned/garbled PDF with no Items is unsafe, not clean — it
   // falls through to the banner treatment below.
-  if (items.length === 0 && !safetyWarning) {
+  if (items.length === 0 && !safetyWarning && !advisory) {
     return (
       <div className="empty-state">
         <p className="empty-headline">✓ No personal data detected in {filename}</p>
@@ -126,6 +130,11 @@ export function ReviewScreen({
       {safetyWarning && (
         <p className="safety-banner" role="alert">
           ⚠ {safetyWarning}
+        </p>
+      )}
+      {advisory && (
+        <p className="advisory-banner" role="status">
+          ⚠ {advisory}
         </p>
       )}
       {items.length === 0 ? (
