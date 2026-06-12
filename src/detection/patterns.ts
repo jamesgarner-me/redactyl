@@ -151,23 +151,77 @@ export const BUILTIN_PATTERNS: DetectorPattern[] = [
 ];
 
 // Explicitly-labelled fields, keyed off the *author's* label rather than the
-// value's shape. ADDRESS is the one Category with no value-shape regex (street
-// formats are too varied to match precisely), so a single-occurrence address
-// the model misses leaks with nothing to catch it. But where the document spells
-// out the label — "- Residential address: <value>" — we can tag the value with
-// near-zero false-positive risk and let propagation spread it to any prose
-// occurrence. Extensible: add { labels, category } rows for other labelled PII.
+// value's shape. Two motivating cases:
+//
+//  - ADDRESS is the one Category with no value-shape regex (street formats are
+//    too varied to match precisely), so a single-occurrence address the model
+//    misses leaks with nothing to catch it.
+//  - Numeric IDs such as a Tax File Number or a driver's licence are routinely
+//    misread as PHONE: the bare PHONE regex (40) and the model's `private_phone`
+//    span (50–70) both claim digit runs, and a TFN that fails the mod-11 check —
+//    or a licence with a non-TFN shape — has no high-confidence ID regex to win
+//    the merge (GitHub #12). When the author has *labelled* the field, the label
+//    is stronger evidence than any shape guess.
+//
+// Where the document spells out the label — "- Residential address: <value>",
+// "TFN: <value>" — we tag the value at confidence 90 (above the model's spans,
+// below validated identifiers) with near-zero false-positive risk and let
+// propagation spread it to any prose occurrence. Extensible: add rows for other
+// labelled PII.
 interface LabelledField {
   // Label words preceding the colon, as a regex alternation fragment.
   labels: string;
   category: Category;
-  // High enough to beat the model's ADDRESS span (50–70) and collapse with it,
-  // but below validated identifiers — an explicit label is strong evidence.
+  // High enough to beat the model's span (50–70) and collapse with it, but below
+  // validated identifiers — an explicit label is strong evidence.
   confidence: number;
+  // A fixed word required between the label and the colon (e.g. ADDRESS's
+  // "address", so only "Residential address:" fires, never a bare "Residential:").
+  // Omitted for labels that are complete on their own ("TFN", "Passport").
+  suffix?: string;
+  // Optional shape guard on the captured value. ID labels require the value to
+  // look numeric, so a prose line such as "Licence: granted on appeal" is never
+  // masked while "Licence number: 1234 5678 9012" is.
+  valueOk?: (value: string) => boolean;
+}
+
+// An ID value must carry a handful of digits; this rejects prose that merely
+// follows an ID-ish word with a colon, while admitting licence/passport numbers
+// that mix a letter prefix with digits.
+function looksNumericId(value: string): boolean {
+  return (value.match(/\d/g)?.length ?? 0) >= 4;
 }
 
 const LABELLED_FIELDS: LabelledField[] = [
-  { labels: 'Residential|Postal|Home|Street', category: 'ADDRESS', confidence: 90 },
+  { labels: 'Residential|Postal|Home|Street', suffix: 'address', category: 'ADDRESS', confidence: 90 },
+  // ID labels → the ID bucket (ACCOUNT_NUMBER), so a labelled identifier never
+  // lands under Phone. Confidence 90 beats PHONE (40) and the model's
+  // `private_phone` (50–70); the numeric guard keeps prose out.
+  {
+    labels: 'TFN(?:[ \\t]+(?:number|no\\.?))?|Tax[ \\t]+file[ \\t]+number',
+    category: 'ACCOUNT_NUMBER',
+    confidence: 90,
+    valueOk: looksNumericId,
+  },
+  {
+    labels:
+      "Driver['\u2019]?s?[ \\t]+licen[cs]e(?:[ \\t]+(?:number|no\\.?))?|Licen[cs]e(?:[ \\t]+(?:number|no\\.?))?",
+    category: 'ACCOUNT_NUMBER',
+    confidence: 90,
+    valueOk: looksNumericId,
+  },
+  {
+    labels: 'Medicare(?:[ \\t]+(?:card(?:[ \\t]+number)?|number|no\\.?))?',
+    category: 'ACCOUNT_NUMBER',
+    confidence: 90,
+    valueOk: looksNumericId,
+  },
+  {
+    labels: 'Passport(?:[ \\t]+(?:number|no\\.?))?',
+    category: 'ACCOUNT_NUMBER',
+    confidence: 90,
+    valueOk: looksNumericId,
+  },
 ];
 
 // Match a labelled line and capture the value after the colon. Allows an
@@ -175,10 +229,10 @@ const LABELLED_FIELDS: LabelledField[] = [
 // rest of the line, trimmed. Case-insensitive on the label; the `d` flag yields
 // the capture group's absolute offsets so the span anchors exactly.
 function labelRegex(field: LabelledField): RegExp {
-  return new RegExp(
-    `^[ \\t]*[-*]?[ \\t]*(?:${field.labels})[ \\t]+address[ \\t]*:[ \\t]*(\\S.*?)[ \\t]*$`,
-    'gimd',
-  );
+  const label = field.suffix
+    ? `(?:${field.labels})[ \\t]+${field.suffix}`
+    : `(?:${field.labels})`;
+  return new RegExp(`^[ \\t]*[-*]?[ \\t]*${label}[ \\t]*:[ \\t]*(\\S.*?)[ \\t]*$`, 'gimd');
 }
 
 export function labelledFieldSpans(text: string): ScoredSpan[] {
@@ -192,6 +246,7 @@ export function labelledFieldSpans(text: string): ScoredSpan[] {
       const [start, end] = indices;
       const value = text.slice(start, end);
       if (!value) continue;
+      if (field.valueOk && !field.valueOk(value)) continue;
       scored.push({ start, end, category: field.category, value, confidence: field.confidence });
     }
   }
