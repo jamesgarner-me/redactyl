@@ -41,6 +41,10 @@ export function Receipt({ outputs, failures, onRedactAnother }: Props) {
   // The zip is assembled lazily on click (reading every output's bytes), so the
   // button reflects an in-flight save without blocking the receipt render.
   const [busy, setBusy] = useState<null | 'outputs' | 'mappings'>(null);
+  // The mappings are the reversal keys, so they sit behind a collapsed accordion
+  // (rather than next to the redacted-file saves) to keep them from being grabbed
+  // by reflex. The user opts in to revealing them.
+  const [showMappingsBundle, setShowMappingsBundle] = useState(false);
   const showMappings = hasMappings(outputs);
 
   async function saveAll() {
@@ -103,37 +107,49 @@ export function Receipt({ outputs, failures, onRedactAnother }: Props) {
 
       {showMappings && (
         <div className="output-card mapping-card">
-          <div className="output-meta">
-            <span className="output-label">Re-identification mappings</span>
-            <span className="mapping-warning">
-              ⚠ Anyone with these files can reverse the redaction. Keep them separate from the
-              redacted documents.
-            </span>
-          </div>
-          {outputs.flatMap((output, i) =>
-            output.mapping
-              ? [
-                  <div key={`map:${i}`} className="mapping-row">
-                    <span className="output-name">{output.mapping.name}</span>
-                    <button
-                      type="button"
-                      className="save"
-                      onClick={() => saveBlob(output.mapping as SaveTarget)}
-                    >
-                      ↓ save
-                    </button>
-                  </div>,
-                ]
-              : [],
-          )}
           <button
             type="button"
-            className="save save-all-mappings"
-            disabled={busy !== null}
-            onClick={saveAllMappings}
+            className="mapping-accordion-toggle"
+            aria-expanded={showMappingsBundle}
+            onClick={() => setShowMappingsBundle((s) => !s)}
           >
-            ↓ Save all mappings as .zip
+            <span className="accordion-chevron" aria-hidden="true">
+              {showMappingsBundle ? '▾' : '▸'}
+            </span>
+            <span className="output-label">Re-identification mappings</span>
           </button>
+          {showMappingsBundle && (
+            <div className="mapping-accordion-body">
+              <span className="mapping-warning">
+                ⚠ Anyone with these files can reverse the redaction. Keep them separate from the
+                redacted documents.
+              </span>
+              {outputs.flatMap((output, i) =>
+                output.mapping
+                  ? [
+                      <div key={`map:${i}`} className="mapping-row">
+                        <span className="output-name">{output.mapping.name}</span>
+                        <button
+                          type="button"
+                          className="save"
+                          onClick={() => saveBlob(output.mapping as SaveTarget)}
+                        >
+                          ↓ save
+                        </button>
+                      </div>,
+                    ]
+                  : [],
+              )}
+              <button
+                type="button"
+                className="save save-all-mappings"
+                disabled={busy !== null}
+                onClick={saveAllMappings}
+              >
+                ↓ Save all mappings as .zip
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -43,16 +43,20 @@ describe('Receipt — batch outputs', () => {
     expect(html).not.toContain('Save all');
   });
 
-  // When any Document opted into a mapping, a distinct mappings bundle and the
-  // re-identification warning appear; the redacted-outputs section is unchanged.
-  it('offers a separate mappings bundle with the re-identification warning', () => {
+  // When any Document opted into a mapping, the mappings bundle is offered behind
+  // a collapsed accordion: the header is present but the reversal keys, the
+  // bundle action and the re-identification warning stay hidden until opened.
+  it('tucks the mappings bundle behind a collapsed accordion', () => {
     const html = render([
       output('a.redacted.txt', 'a.redactyl-mapping.json'),
       output('b.redacted.txt'),
     ]);
-    expect(html).toContain('a.redactyl-mapping.json');
-    expect(html).toContain('Save all mappings');
-    expect(html).toContain('reverse the redaction');
+    expect(html).toContain('Re-identification mappings');
+    expect(html).toContain('aria-expanded="false"');
+    // Collapsed by default — the sensitive details are not in the markup yet.
+    expect(html).not.toContain('a.redactyl-mapping.json');
+    expect(html).not.toContain('Save all mappings');
+    expect(html).not.toContain('reverse the redaction');
   });
 
   // Edge case: succeeded and failed are visibly separated; failures show reasons

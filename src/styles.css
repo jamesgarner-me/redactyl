@@ -1160,6 +1160,33 @@ body {
   margin-top: 0.5rem;
 }
 
+/* The mappings card is an accordion: a full-width header toggles the (initially
+   hidden) bundle of reversal keys, so they aren't reached for by reflex. */
+.mapping-accordion-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.accordion-chevron {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.mapping-accordion-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
 .mapping-row {
   display: flex;
   flex-direction: column;
