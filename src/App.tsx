@@ -5,8 +5,21 @@ import { createTextDocument } from './document/textDocument';
 import { createDocumentOpener } from './document/opener';
 import type { Document } from './document/document';
 import { renderPageToPng } from './pdf/pdfRender';
+import {
+  activeFile,
+  createBatch,
+  isComplete,
+  recordFailure,
+  recordSuccess,
+  skipActive,
+  type Batch,
+  type BatchFailure,
+  type BatchOutput,
+} from './batch/batch';
+import { assessIntake, type SkippedFile } from './batch/intake';
 import { TopBar } from './ui/TopBar';
 import { FileDropZone } from './ui/FileDropZone';
+import { IntakeWarningModal } from './ui/IntakeWarningModal';
 import { DropzoneIntro } from './ui/DropzoneIntro';
 import { Analyzing } from './ui/Analyzing';
 import { ReviewScreen } from './ui/ReviewScreen';
@@ -21,28 +34,37 @@ import { isDemoEnabled } from './demo/flag';
 import { sampleReview } from './demo/sampleDocument';
 
 // The screen carries the opened Document straight through review — source (text
-// vs PDF) lives entirely behind the Document seam, never branched here.
+// vs PDF) lives entirely behind the Document seam, never branched here. A Batch
+// (held in a ref) drives the loop across multiple files; the receipt lists every
+// accumulated output and any files that failed.
 type Screen =
   | { name: 'dropzone'; error?: string }
   | { name: 'analyzing'; filename: string; progress?: { processed: number; total: number } }
   | { name: 'review'; id: number; document: Document; items: Item[]; advisory?: string }
   | { name: 'redacting'; filename: string }
-  | {
-      name: 'receipt';
-      outputName: string;
-      blob: Blob;
-      mapping?: { name: string; blob: Blob };
-      rasterisedPages?: number[];
-    };
+  | { name: 'receipt'; outputs: BatchOutput[]; failures: BatchFailure[] };
+
+const ALL_UNSUPPORTED_ERROR =
+  'None of these are supported. Redactyl handles .pdf, .txt, .md and .csv.';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'dropzone' });
+  // The gated-intake warning (slice 05): set when a drop mixes processable files
+  // with files to skip. Rendered as a modal over the dropzone.
+  const [pendingIntake, setPendingIntake] = useState<{
+    accepted: File[];
+    skipped: SkippedFile[];
+  } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, toggleTheme] = useTheme();
   const [regexEnabled, setRegexEnabled] = useRegexDetection();
   const modelWorker = useMemo(() => createModelWorker(), []);
   const model = useModelGate(modelWorker.client);
   const runIdRef = useRef(0);
+  // The in-flight Batch. Kept in a ref (not state) so the orchestration reads the
+  // latest value synchronously across the async open → review → redact loop; the
+  // receipt screen snapshots the accumulated outputs/failures when it's shown.
+  const batchRef = useRef<Batch | null>(null);
 
   // The opener (and the PdfDocuments it builds) is constructed once, but PDF
   // verification must reflect the *current* regex setting — so the detect dep
@@ -84,14 +106,51 @@ export default function App() {
     });
   }
 
-  async function handleFile(file: File) {
+  // Open and analyse the Batch's active file, or — when the Batch is done —
+  // present the receipt. An open-time failure (e.g. encrypted PDF) marks the
+  // file failed and continues with the rest rather than aborting the Batch.
+  async function processNext(batch: Batch) {
+    batchRef.current = batch;
+    if (isComplete(batch)) {
+      setScreen({ name: 'receipt', outputs: [...batch.outputs], failures: [...batch.failures] });
+      return;
+    }
+    const file = activeFile(batch);
+    if (!file) return;
     setScreen({ name: 'analyzing', filename: file.name });
     const result = await opener.open(file);
     if (!result.ok) {
-      setScreen({ name: 'dropzone', error: result.message });
+      void processNext(recordFailure(batch, { filename: file.name, reason: result.message }));
       return;
     }
     await analyze(result.document);
+  }
+
+  // Begin a Batch over the supported, in-cap files chosen at intake.
+  function startBatch(files: File[]) {
+    void processNext(createBatch(files));
+  }
+
+  // Assess a drop/selection up front: proceed silently when everything is
+  // processable, warn before skipping anything, or fall back to the dropzone
+  // error when nothing is supported. See ADR 0005 / slice 05.
+  function handleFiles(files: File[]) {
+    const { accepted, skipped } = assessIntake(files);
+    if (accepted.length === 0) {
+      setScreen({ name: 'dropzone', error: ALL_UNSUPPORTED_ERROR });
+      return;
+    }
+    if (skipped.length === 0) {
+      startBatch(accepted);
+      return;
+    }
+    setPendingIntake({ accepted, skipped });
+  }
+
+  function goHome() {
+    batchRef.current = null;
+    setPendingIntake(null);
+    setScreen({ name: 'dropzone' });
   }
 
   // Toggling regex changes detection, so re-scan the current Document to reflect
@@ -104,35 +163,52 @@ export default function App() {
     void analyze(screen.document);
   }
 
-  // Redaction is uniform across sources: ask the Document to redact. The
-  // fail-closed cases (PDF leak, file flagged unsafe) come back as an
-  // `ok: false` outcome and route to the dropzone error.
+  // Redaction is uniform across sources: ask the Document to redact. A
+  // fail-closed outcome (PDF leak, file flagged unsafe) marks the file failed
+  // and the Batch continues; a success records the output and advances.
   async function handleRedact(acceptedSpans: Span[], saveMapping: boolean) {
     if (screen.name !== 'review') return;
+    const batch = batchRef.current;
+    if (!batch) return;
     const doc = screen.document;
     setScreen({ name: 'redacting', filename: doc.filename });
     // Let the redacting screen paint before the (synchronous) text rewrite.
     await new Promise((resolve) => setTimeout(resolve, 0));
     const outcome = await doc.redact(acceptedSpans, { saveMapping });
     if (!outcome.ok) {
-      setScreen({ name: 'dropzone', error: outcome.message });
+      void processNext(recordFailure(batch, { filename: doc.filename, reason: outcome.message }));
       return;
     }
-    setScreen({
-      name: 'receipt',
-      outputName: outcome.outputName,
-      blob: outcome.blob,
-      mapping: outcome.mapping,
-      rasterisedPages: outcome.rasterisedPages,
-    });
+    void processNext(
+      recordSuccess(batch, {
+        outputName: outcome.outputName,
+        blob: outcome.blob,
+        mapping: outcome.mapping,
+        rasterisedPages: outcome.rasterisedPages,
+      }),
+    );
+  }
+
+  // The review screen's "all clear" affordance. In a single-file Batch this is
+  // the terminal step (back to the dropzone, as before); mid multi-file Batch a
+  // clean Document produces no output, so advance to the next one.
+  function handleReviewDone() {
+    const batch = batchRef.current;
+    if (batch && batch.files.length > 1) {
+      void processNext(skipActive(batch));
+      return;
+    }
+    goHome();
   }
 
   // Demo mode (?demo): replay the e2e flow from an embedded fixture so the UI
   // can be reviewed without a real file. Builds a text Document so it travels
-  // the same path as a real file.
+  // the same path as a real file, wrapped in a Batch of one.
   function loadSample() {
     const sample = sampleReview();
     const doc = createTextDocument(sample.filename, sample.text);
+    const file = new File([sample.text], sample.filename, { type: 'text/plain' });
+    batchRef.current = createBatch([file]);
     setScreen({ name: 'analyzing', filename: sample.filename });
     setTimeout(() => {
       setScreen({ name: 'review', id: ++runIdRef.current, document: doc, items: sample.items });
@@ -148,7 +224,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setSettingsOpen(true)}
-        onHome={() => setScreen({ name: 'dropzone' })}
+        onHome={goHome}
       />
       <p className="small-screen-advisory" role="note">
         Redactyl works best on desktop. The detector is a small model run in-browser, with a
@@ -202,12 +278,20 @@ export default function App() {
                 homepage rather than dropping onto a bare drop target. */}
             <div className="dropzone-panel">
               <DropzoneIntro />
-              <FileDropZone
-                onFile={handleFile}
-                onReject={(error) => setScreen({ name: 'dropzone', error })}
-                error={screen.error}
-              />
+              <FileDropZone onFiles={handleFiles} error={screen.error} />
             </div>
+            {pendingIntake && (
+              <IntakeWarningModal
+                acceptedCount={pendingIntake.accepted.length}
+                skipped={pendingIntake.skipped}
+                onContinue={() => {
+                  const { accepted } = pendingIntake;
+                  setPendingIntake(null);
+                  startBatch(accepted);
+                }}
+                onCancel={goHome}
+              />
+            )}
             {isDemoEnabled() && (
               <button type="button" className="demo-button" onClick={loadSample}>
                 ▶ Load sample document (demo)
@@ -222,11 +306,9 @@ export default function App() {
       case 'receipt':
         return (
           <Receipt
-            outputName={screen.outputName}
-            blob={screen.blob}
-            mapping={screen.mapping}
-            rasterisedPages={screen.rasterisedPages}
-            onRedactAnother={() => setScreen({ name: 'dropzone' })}
+            outputs={screen.outputs}
+            failures={screen.failures}
+            onRedactAnother={goHome}
           />
         );
       case 'review':
@@ -240,7 +322,7 @@ export default function App() {
             safetyWarning={screen.document.safetyWarning}
             advisory={screen.advisory}
             onRedact={handleRedact}
-            onRedactAnother={() => setScreen({ name: 'dropzone' })}
+            onRedactAnother={handleReviewDone}
           />
         );
     }
