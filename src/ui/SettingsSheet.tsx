@@ -9,6 +9,8 @@ interface Props {
   onClearCache?: () => void;
   regexEnabled: boolean;
   onToggleRegex: () => void;
+  autoRedact: boolean;
+  onToggleAutoRedact: () => void;
 }
 
 // The ⚙ sheet. Holds detection prefs and model-cache actions — theme lives in
@@ -20,6 +22,8 @@ export function SettingsSheet({
   onClearCache,
   regexEnabled,
   onToggleRegex,
+  autoRedact,
+  onToggleAutoRedact,
 }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -56,6 +60,21 @@ export function SettingsSheet({
               <span className="advanced-hint">
                 On by default. Catches patterned values (emails, phones, TFNs) the model misses in
                 prose. Toggling re-scans the current file.
+              </span>
+            </span>
+          </label>
+        </section>
+        <section className="sheet-section">
+          <h3>Redaction</h3>
+          <label className="advanced-option">
+            <input type="checkbox" checked={autoRedact} onChange={onToggleAutoRedact} />
+            <span>
+              Auto-redact without review
+              <span className="advanced-hint">
+                Off by default. Redacts every file unattended, accepting all detected items with no
+                review — so you don't click through each file. Files that can't be safely sanitised
+                are skipped and listed on the receipt. Read once when you open files, so it applies
+                to the next batch.
               </span>
             </span>
           </label>

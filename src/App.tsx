@@ -17,6 +17,7 @@ import {
   type BatchOutput,
 } from './batch/batch';
 import { assessIntake, type SkippedFile } from './batch/intake';
+import { unattendedAction } from './batch/unattended';
 import { TopBar } from './ui/TopBar';
 import { FileDropZone } from './ui/FileDropZone';
 import { IntakeWarningModal } from './ui/IntakeWarningModal';
@@ -29,6 +30,7 @@ import { ModelGate } from './ui/ModelGate';
 import { PterodactylMark } from './ui/PterodactylMark';
 import { useTheme } from './ui/useTheme';
 import { useRegexDetection } from './ui/useRegexDetection';
+import { useAutoRedact } from './ui/useAutoRedact';
 import { useModelGate } from './model/useModelGate';
 import { isDemoEnabled } from './demo/flag';
 import { sampleReview } from './demo/sampleDocument';
@@ -58,6 +60,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, toggleTheme] = useTheme();
   const [regexEnabled, setRegexEnabled] = useRegexDetection();
+  const [autoRedact, setAutoRedact] = useAutoRedact();
   const modelWorker = useMemo(() => createModelWorker(), []);
   const model = useModelGate(modelWorker.client);
   const runIdRef = useRef(0);
@@ -97,6 +100,29 @@ export default function App() {
     // missed in name-titled columns and may raise a non-blocking advisory).
     const refined = doc.refineDetection?.(detected);
     const items = refined?.items ?? detected;
+    // Unattended Auto-redact (ADR 0006): no review — quarantine what can't be
+    // safely sanitised, skip a clean Document, else accept all Items and redact.
+    const batch = batchRef.current;
+    if (batch?.unattended) {
+      const action = unattendedAction(items, doc.safetyWarning);
+      if (action === 'quarantine') {
+        void processNext(
+          recordFailure(batch, { filename: doc.filename, reason: doc.safetyWarning ?? 'unsafe' }),
+        );
+        return;
+      }
+      if (action === 'skip') {
+        void processNext(skipActive(batch));
+        return;
+      }
+      await redactDocument(
+        batch,
+        doc,
+        items.flatMap((item) => item.spans),
+        false,
+      );
+      return;
+    }
     setScreen({
       name: 'review',
       id: ++runIdRef.current,
@@ -126,9 +152,11 @@ export default function App() {
     await analyze(result.document);
   }
 
-  // Begin a Batch over the supported, in-cap files chosen at intake.
+  // Begin a Batch over the supported, in-cap files chosen at intake. The
+  // Auto-redact setting is snapshotted here (ADR 0006) so it's read once at the
+  // start and a later settings change can't affect this in-flight Batch.
   function startBatch(files: File[]) {
-    void processNext(createBatch(files));
+    void processNext(createBatch(files, autoRedact));
   }
 
   // Assess a drop/selection up front: proceed silently when everything is
@@ -165,12 +193,14 @@ export default function App() {
 
   // Redaction is uniform across sources: ask the Document to redact. A
   // fail-closed outcome (PDF leak, file flagged unsafe) marks the file failed
-  // and the Batch continues; a success records the output and advances.
-  async function handleRedact(acceptedSpans: Span[], saveMapping: boolean) {
-    if (screen.name !== 'review') return;
-    const batch = batchRef.current;
-    if (!batch) return;
-    const doc = screen.document;
+  // and the Batch continues; a success records the output and advances. Shared
+  // by the review screen's Redact button and the unattended Auto-redact path.
+  async function redactDocument(
+    batch: Batch,
+    doc: Document,
+    acceptedSpans: Span[],
+    saveMapping: boolean,
+  ) {
     setScreen({ name: 'redacting', filename: doc.filename });
     // Let the redacting screen paint before the (synchronous) text rewrite.
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -187,6 +217,13 @@ export default function App() {
         rasterisedPages: outcome.rasterisedPages,
       }),
     );
+  }
+
+  function handleRedact(acceptedSpans: Span[], saveMapping: boolean) {
+    if (screen.name !== 'review') return;
+    const batch = batchRef.current;
+    if (!batch) return;
+    void redactDocument(batch, screen.document, acceptedSpans, saveMapping);
   }
 
   // The review screen's "all clear" affordance. In a single-file Batch this is
@@ -247,6 +284,8 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         regexEnabled={regexEnabled}
         onToggleRegex={handleToggleRegex}
+        autoRedact={autoRedact}
+        onToggleAutoRedact={() => setAutoRedact(!autoRedact)}
         // Recovery actions only make sense once the model is cached.
         onRedownload={
           modelReady
@@ -311,11 +350,18 @@ export default function App() {
             onRedactAnother={goHome}
           />
         );
-      case 'review':
+      case 'review': {
+        // The active file's position in the Batch, surfaced in the review header
+        // so multi-file users can tell which file's PII they're confirming.
+        const batch = batchRef.current;
+        const batchPosition = batch
+          ? { index: batch.activeIndex + 1, total: batch.files.length }
+          : undefined;
         return (
           <ReviewScreen
             key={screen.id}
             filename={screen.document.filename}
+            batchPosition={batchPosition}
             items={screen.items}
             locate={screen.document.locate}
             allowMapping={screen.document.allowMapping}
@@ -325,6 +371,7 @@ export default function App() {
             onRedactAnother={handleReviewDone}
           />
         );
+      }
     }
   }
 }

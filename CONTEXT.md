@@ -10,7 +10,7 @@ _Kinds_: **text** (`.txt` / `.md`), **CSV** (`.csv`, or tabular comma-separated 
 _Avoid_: file (the raw upload before extraction), input.
 
 **Batch**:
-An ordered set of **Documents** the user opened together in one go. The user works through them one Document at a time — each is **Detected**, reviewed and **Redacted** independently (no cross-Document grouping) — and the redacted outputs are taken away together. A Batch of one is just the single-file flow.
+An ordered set of **Documents** the user opened together in one go. The user works through them one Document at a time — each is **Detected**, reviewed and **Redacted** independently (no cross-Document grouping) — and the redacted outputs are taken away together. A Batch of one is just the single-file flow. A Batch may run **unattended** (see **Auto-redact**), in which case the review step is skipped for every Document.
 _Avoid_: queue, set, session, job.
 
 **Cell**:
@@ -57,6 +57,11 @@ Removing an Item via its `×`: "this is NOT PII." The row leaves the list, its B
 **Redact**:
 Produce the sanitised output with every accepted **Item** replaced by its **Token**.
 _Avoid (user-facing)_: **Strip** — "strip" refers only to the internal removal of text from a PDF content stream, never a user-facing concept.
+
+**Auto-redact**:
+**Redact** a **Document** without showing its review — every detected **Item** is **Accepted**, no **Mapping** sidecar, no human in front of the output. The user opts into this per **Batch** via a setting (off by default), read once when the Batch is created so a mid-run change can't take effect. A **Document** that can't be safely sanitised (a `safetyWarning` PDF) is quarantined as a **Batch** failure rather than auto-redacted; a clean **Document** auto-advances with no output. See [ADR 0006](./docs/adr/0006-unattended-auto-redact.md).
+_User-facing alias_: **Unattended** (the Batch runs unattended).
+_Avoid_: silent, headless, bulk.
 
 **Token**:
 The replacement string written into the output, shaped `<CATEGORY_N>` (`<EMAIL_1>`, `<PERSON_2>`). `N` is a per-Category counter assigned in first-appearance order. Stable within one redaction run.

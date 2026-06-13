@@ -1,0 +1,10 @@
+# Unattended Auto-redact
+
+A **Batch** can run **unattended**: instead of pausing on each **Document**'s review, the loop accepts every detected **Item**, redacts with no **Mapping** sidecar, and advances — so a user with many files isn't made to click through each one. The decision is a setting (off by default) snapshotted onto the Batch when it's created, so it is read once at the start and a mid-run change cannot alter the in-flight run. This is a deliberate relaxation of the tool's previous invariant that a human reviews every redaction before output, justified by batch throughput; we keep it opt-in and default-off precisely because that invariant is the safer one.
+
+## Consequences
+
+- **Unsafe Documents are quarantined, not auto-redacted, and not paused on.** A `safetyWarning` PDF (scanned/garbled — can't be safely sanitised) is recorded as a **Batch** failure and listed on the receipt with its reason, exactly like a fail-closed redact leak. We rejected pausing unattended mode to drop into that file's review: it would reintroduce the per-file clicking the feature exists to remove, and "unattended" must mean it. Because the unsafe file simply never enters the bundle, skipping it leaks nothing.
+- **A clean Document produces no output, silently.** With no human to see the "no personal data detected" state, a Document with zero Items auto-advances and is absent from the receipt's outputs — the same end state as the attended flow (a clean file yields no redacted file), minus the click.
+- **Unattended output equals straight-through attended output.** Auto-redact makes exactly the choices the review screen defaults to — accept all, mapping off — so the bytes a user gets unattended are identical to clicking Redact immediately without touching the list. There is no separate unattended code path through the Document seam.
+- **The snapshot lives on the Batch, not in React.** `createBatch` captures the setting into an `unattended` flag on the immutable Batch, so the orchestration reads it off the Batch (covered by the React-free batch unit tests) and it cannot drift mid-run.

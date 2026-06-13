@@ -27,16 +27,21 @@ export interface BatchFailure {
 // The immutable Batch state. `activeIndex` points at the file currently being
 // worked; it equals `files.length` once every file has resolved (the Batch is
 // then complete). `outputs`/`failures` accumulate in completion order.
+// `unattended` is the Auto-redact decision snapshotted at creation (ADR 0006);
+// read once here so a mid-run settings change can't alter the in-flight Batch.
 export interface Batch {
   readonly files: readonly File[];
   readonly activeIndex: number;
   readonly outputs: readonly BatchOutput[];
   readonly failures: readonly BatchFailure[];
+  readonly unattended: boolean;
 }
 
-// Open a fresh Batch over the supported, in-cap files chosen at intake.
-export function createBatch(files: readonly File[]): Batch {
-  return { files: [...files], activeIndex: 0, outputs: [], failures: [] };
+// Open a fresh Batch over the supported, in-cap files chosen at intake. The
+// Auto-redact setting is snapshotted here (default attended) so it is read once
+// at the start of the Batch and cannot drift as the loop runs.
+export function createBatch(files: readonly File[], unattended = false): Batch {
+  return { files: [...files], activeIndex: 0, outputs: [], failures: [], unattended };
 }
 
 // The file App should open and analyse next, or undefined when the Batch is done.
