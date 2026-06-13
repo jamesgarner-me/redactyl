@@ -97,3 +97,64 @@ describe('labelledFieldSpans', () => {
     expect(merged[0].value).toBe(labelled.value);
   });
 });
+
+// GitHub #12: labelled numeric identifiers (TFN, driver's licence, Medicare,
+// passport) were surfacing under the Phone bucket as <PHONE_n>. The author's
+// explicit label is stronger evidence than any digit-shape guess, so these now
+// land in the ID bucket (ACCOUNT_NUMBER) and beat both the bare PHONE regex and
+// the model's private_phone span at merge.
+describe('labelled ID fields (GitHub #12)', () => {
+  it('classifies labelled TFN and licence lines as ACCOUNT_NUMBER, anchored exactly', () => {
+    const cases: { line: string; value: string }[] = [
+      { line: 'TFN: 123 456 782', value: '123 456 782' },
+      { line: 'Tax File Number: 123 456 782', value: '123 456 782' },
+      { line: "- Driver's licence: 1234 5678 9012", value: '1234 5678 9012' },
+      { line: 'Licence number: D1234567', value: 'D1234567' },
+      { line: 'Medicare number: 2123 45670 1', value: '2123 45670 1' },
+      { line: 'Passport No: PA1234567', value: 'PA1234567' },
+    ];
+    for (const { line, value } of cases) {
+      const spans = labelledFieldSpans(line);
+      expect(spans).toHaveLength(1);
+      expect(spans[0]).toMatchObject({ category: 'ACCOUNT_NUMBER', value });
+      // The span anchors to the value only, never the label or padding.
+      expect(line.slice(spans[0].start, spans[0].end)).toBe(value);
+    }
+  });
+
+  it('beats a competing PHONE / private_phone span over the same value at merge', () => {
+    // The core bug: a TFN the model misreads as a phone. The labelled span (90)
+    // must win the overlap so the value is tokenised as an ID, not <PHONE_n>.
+    const labelled = labelledFieldSpans('TFN: 123 456 782')[0];
+    const phoneRegex: ScoredSpan = { ...labelled, category: 'PHONE', confidence: 40 };
+    const phoneNer: ScoredSpan = { ...labelled, category: 'PHONE', confidence: 65 };
+    const merged = mergeSpans([phoneRegex, phoneNer, labelled]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ category: 'ACCOUNT_NUMBER', value: '123 456 782' });
+  });
+
+  it('propagates a labelled TFN to a bare occurrence elsewhere in the document', () => {
+    const text = 'TFN: 123 456 782\nPlease quote 123 456 782 in correspondence.';
+    const labelled = labelledFieldSpans(text); // catches the labelled occurrence only
+    expect(labelled).toHaveLength(1);
+    const propagated = propagateOccurrences(text, labelled); // spreads to the prose copy
+    const ids = mergeSpans([...labelled, ...propagated]).filter(
+      (s) => s.category === 'ACCOUNT_NUMBER',
+    );
+    expect(ids).toHaveLength(2);
+    expect(ids.every((s) => s.value === '123 456 782')).toBe(true);
+  });
+
+  // Edge case: an ID label whose value isn't numeric is prose, not an identifier.
+  it('does not mask a non-numeric value after an ID-ish label', () => {
+    expect(labelledFieldSpans('Licence: granted on appeal')).toHaveLength(0);
+    expect(labelledFieldSpans('Passport: ready for collection')).toHaveLength(0);
+  });
+
+  // Edge case: a labelled phone line is not an ID label, so the ID layer ignores
+  // it and the value is left for the PHONE detectors — no PHONE→ID regression.
+  it('leaves a labelled phone line for the PHONE detectors', () => {
+    expect(labelledFieldSpans('Phone: +61 408 776 221')).toHaveLength(0);
+    expect(labelledFieldSpans('Mobile: 0412 345 678')).toHaveLength(0);
+  });
+});
