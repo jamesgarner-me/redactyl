@@ -90,6 +90,39 @@ describe('createDocumentOpener', () => {
     ]);
   });
 
+  // Regression guard for GitHub #11: the trickiest "structure preserved" case —
+  // a sniffed .txt CSV whose quoted fields carry an embedded comma AND an
+  // embedded newline, with PII spread across multiple rows. Redaction must
+  // tokenise only the PII cells and still round-trip as valid CSV with every
+  // quoted boundary intact.
+  it('preserves embedded commas/newlines across rows when redacting sniffed CSV-in-.txt', async () => {
+    const body =
+      'name,note,email\r\n' +
+      '"Smith, Jo","line1\nline2",jane@x.com\r\n' +
+      'Bob,plain,bob@y.com\r\n';
+    const result = await opener.open(new File([body], 'contacts.txt', { type: 'text/plain' }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const items = await deps.detect(result.document.text);
+    const jane = items.find((i) => i.value === 'jane@x.com');
+    const bob = items.find((i) => i.value === 'bob@y.com');
+    expect(jane).toBeDefined();
+    expect(bob).toBeDefined();
+    expect(result.document.locate(jane!)).toBe('row 2, col 3');
+    expect(result.document.locate(bob!)).toBe('row 3, col 3');
+    const outcome = await result.document.redact([...jane!.spans, ...bob!.spans], {
+      saveMapping: false,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const grid = parseCsv(await outcome.blob.text());
+    expect(grid).toEqual([
+      ['name', 'note', 'email'],
+      ['Smith, Jo', 'line1\nline2', '<EMAIL_1>'],
+      ['Bob', 'plain', '<EMAIL_2>'],
+    ]);
+  });
+
   it('falls back to plain text when .txt content fails CSV parse', async () => {
     const body = 'name,email\nAlice,"unclosed';
     const result = await opener.open(new File([body], 'notes.txt'));
