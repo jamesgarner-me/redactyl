@@ -19,7 +19,6 @@ const SPANS = emailSpans(TEXT, 'jane@x.com');
 describe('TextDocument', () => {
   it('exposes text-source capabilities', () => {
     const doc = createTextDocument('notes.txt', TEXT);
-    expect(doc.allowMapping).toBe(true);
     expect(doc.safetyWarning).toBeUndefined();
   });
 

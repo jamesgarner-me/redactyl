@@ -11,16 +11,13 @@ interface Props {
   items: Item[];
   // Source-specific locator: line numbers for text, page numbers for PDFs.
   locate: (item: Item) => string;
-  // The mapping sidecar only makes sense for token-substituted text output; the
-  // PDF path blanks glyphs (no tokens), so it hides the option.
-  allowMapping: boolean;
   // When set (a scanned/garbled PDF), a red banner is pinned above the results
   // and redaction is hard-disabled — the file can't be safely sanitised.
   safetyWarning?: string;
   // A non-blocking advisory (e.g. a CSV name column the model recognised no
   // names in). Shown as an amber notice; redaction stays enabled.
   advisory?: string;
-  onRedact: (acceptedSpans: Span[], saveMapping: boolean) => void;
+  onRedact: (acceptedSpans: Span[]) => void;
   onRedactAnother: () => void;
 }
 
@@ -37,7 +34,6 @@ export function ReviewScreen({
   filename,
   items,
   locate,
-  allowMapping,
   safetyWarning,
   advisory,
   onRedact,
@@ -47,8 +43,6 @@ export function ReviewScreen({
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [showDismissed, setShowDismissed] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [saveMapping, setSaveMapping] = useState(false);
 
   // Precompute each Item's key, Bucket, mask flag and locator once.
   const views = useMemo(
@@ -180,33 +174,6 @@ export function ReviewScreen({
           )}
         </div>
       )}
-      {allowMapping && (
-        <div className="advanced-footer">
-          <button
-            type="button"
-            className="link-button"
-            aria-expanded={showAdvanced}
-            onClick={() => setShowAdvanced((s) => !s)}
-          >
-            {showAdvanced ? '▾' : '▸'} Advanced
-          </button>
-          {showAdvanced && (
-            <label className="advanced-option">
-              <input
-                type="checkbox"
-                checked={saveMapping}
-                onChange={() => setSaveMapping((s) => !s)}
-              />
-              <span>
-                Also save a re-identification mapping
-                <span className="advanced-warning">
-                  Anyone with this file can reverse the redaction.
-                </span>
-              </span>
-            </label>
-          )}
-        </div>
-      )}
         </>
       )}
       <RedactButton
@@ -214,7 +181,7 @@ export function ReviewScreen({
         occurrenceCount={occurrenceCount}
         disabled={accepted.length === 0 || !!safetyWarning}
         reason={safetyWarning ? "This file can't be safely sanitised — no output is produced." : undefined}
-        onClick={() => onRedact(accepted.flatMap((v) => v.item.spans), saveMapping)}
+        onClick={() => onRedact(accepted.flatMap((v) => v.item.spans))}
       />
     </div>
   );

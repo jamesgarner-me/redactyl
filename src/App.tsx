@@ -29,6 +29,7 @@ import { ModelGate } from './ui/ModelGate';
 import { PterodactylMark } from './ui/PterodactylMark';
 import { useTheme } from './ui/useTheme';
 import { useRegexDetection } from './ui/useRegexDetection';
+import { useSaveMapping } from './ui/useSaveMapping';
 import { useModelGate } from './model/useModelGate';
 import { isDemoEnabled } from './demo/flag';
 import { sampleReview } from './demo/sampleDocument';
@@ -58,6 +59,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, toggleTheme] = useTheme();
   const [regexEnabled, setRegexEnabled] = useRegexDetection();
+  const [saveMapping, setSaveMapping] = useSaveMapping();
   const modelWorker = useMemo(() => createModelWorker(), []);
   const model = useModelGate(modelWorker.client);
   const runIdRef = useRef(0);
@@ -165,8 +167,10 @@ export default function App() {
 
   // Redaction is uniform across sources: ask the Document to redact. A
   // fail-closed outcome (PDF leak, file flagged unsafe) marks the file failed
-  // and the Batch continues; a success records the output and advances.
-  async function handleRedact(acceptedSpans: Span[], saveMapping: boolean) {
+  // and the Batch continues; a success records the output and advances. Whether
+  // a Mapping sidecar is written is the global preference, read here at redact
+  // time (so a mid-Batch toggle applies to subsequent files only).
+  async function handleRedact(acceptedSpans: Span[]) {
     if (screen.name !== 'review') return;
     const batch = batchRef.current;
     if (!batch) return;
@@ -247,6 +251,8 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         regexEnabled={regexEnabled}
         onToggleRegex={handleToggleRegex}
+        saveMapping={saveMapping}
+        onToggleSaveMapping={() => setSaveMapping(!saveMapping)}
         // Recovery actions only make sense once the model is cached.
         onRedownload={
           modelReady
@@ -318,7 +324,6 @@ export default function App() {
             filename={screen.document.filename}
             items={screen.items}
             locate={screen.document.locate}
-            allowMapping={screen.document.allowMapping}
             safetyWarning={screen.document.safetyWarning}
             advisory={screen.advisory}
             onRedact={handleRedact}

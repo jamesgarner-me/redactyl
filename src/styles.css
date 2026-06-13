@@ -880,11 +880,7 @@ body {
   border: none;
 }
 
-/* Advanced footer */
-.advanced-footer {
-  margin: 0 0 1.25rem;
-}
-
+/* Settings options (detection + output prefs) */
 .advanced-option {
   display: flex;
   align-items: flex-start;

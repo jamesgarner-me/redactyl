@@ -29,7 +29,6 @@ function render({ items = [personItem('John Smith')], safetyWarning, advisory }:
       filename: 'people.csv',
       items,
       locate: () => 'row 2, col 2',
-      allowMapping: true,
       safetyWarning,
       advisory,
       onRedact: () => {},

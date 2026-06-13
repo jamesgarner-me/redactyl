@@ -25,7 +25,6 @@ describe('PdfDocument', () => {
       { filename: 'r.pdf', text: '', glyphs: [], bytes: new Uint8Array(), safety: null },
       deps,
     );
-    expect(doc.allowMapping).toBe(false);
     expect(doc.safetyWarning).toBeUndefined();
   });
 
@@ -52,6 +51,28 @@ describe('PdfDocument', () => {
     expect(outcome.outputName).toBe('r.redacted.pdf');
     expect(outcome.rasterisedPages).toEqual([]);
     expect(outcome.blob.type).toBe('application/pdf');
+    // No sidecar unless the global save-mapping preference is on.
+    expect(outcome.mapping).toBeUndefined();
+  });
+
+  // Option A (ADR 0005): when the user opts into a Mapping, PDFs emit a sidecar
+  // recording the removed values — the same Token → { category, value } shape as
+  // text/CSV — even though those tokens are never written into the blanked PDF.
+  it('emits a Mapping sidecar recording removed values when asked', async () => {
+    const { extracted, glyphs, bytes } = await openPdf('SSN 123-45-6789 here.');
+    const doc = createPdfDocument(
+      { filename: 'r.pdf', text: extracted, glyphs, bytes, safety: null },
+      deps,
+    );
+    const accepted = detect(extracted).flatMap((i) => i.spans);
+    const outcome = await doc.redact(accepted, { saveMapping: true });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok || !outcome.mapping) throw new Error('expected mapping');
+    expect(outcome.mapping.name).toBe('r.redactyl-mapping.json');
+    const json = JSON.parse(await outcome.mapping.blob.text());
+    expect(json.tokens['<SSN_1>']).toEqual({ category: 'SSN', value: '123-45-6789' });
+    // The sidecar must carry no positional data (no page/offset/bbox leakage).
+    expect(JSON.stringify(json)).not.toMatch(/page|offset|bbox|start|end/i);
   });
 
   it('fails closed without producing output when flagged unsafe', async () => {

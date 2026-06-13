@@ -6,15 +6,15 @@ import { buildMapping, mappingName } from '../redaction/mappingExporter';
 import { type Document, type RedactionOutcome, redactedName } from './document';
 
 // The text Document adapter (.txt / .md). Owns line locators, the tokenise →
-// redact → blob rewrite, and the optional Mapping sidecar. Mapping is offered
-// (allowMapping) and there is no safety warning; text redaction never fails
-// closed. The line index is built once per opened Document.
+// redact → blob rewrite, and the optional Mapping sidecar (written when the
+// global save-mapping preference is on). There is no safety warning; text
+// redaction never fails closed. The line index is built once per opened
+// Document.
 export function createTextDocument(filename: string, text: string): Document {
   const lineAt = makeLineIndex(text);
   return {
     filename,
     text,
-    allowMapping: true,
     safetyWarning: undefined,
     locate(item: Item): string {
       return formatLocator(itemLines(item, lineAt));
