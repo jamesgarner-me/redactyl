@@ -8,6 +8,10 @@ import { SummaryStrip, type BucketChip } from './SummaryStrip';
 
 interface Props {
   filename: string;
+  // The active file's place in the Batch (1-based). Shown in the review header
+  // so a multi-file user can tell which file's PII they're confirming; the
+  // "File N of M" counter is omitted for a Batch of one.
+  batchPosition?: { index: number; total: number };
   items: Item[];
   // Source-specific locator: line numbers for text, page numbers for PDFs.
   locate: (item: Item) => string;
@@ -32,6 +36,7 @@ function toggled(set: Set<string>, key: string): Set<string> {
 // remounts per analysis (App keys it) so the state resets for each new file.
 export function ReviewScreen({
   filename,
+  batchPosition,
   items,
   locate,
   safetyWarning,
@@ -119,8 +124,20 @@ export function ReviewScreen({
     });
   }
 
+  const showPosition = !!batchPosition && batchPosition.total > 1;
+
   return (
     <div className="review">
+      <div className="review-file-header">
+        <span className="review-file-name" title={filename}>
+          {filename}
+        </span>
+        {showPosition && (
+          <span className="review-file-position">
+            File {batchPosition.index} of {batchPosition.total}
+          </span>
+        )}
+      </div>
       {safetyWarning && (
         <p className="safety-banner" role="alert">
           ⚠ {safetyWarning}

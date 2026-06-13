@@ -80,4 +80,20 @@ describe('Batch advance logic', () => {
     expect(batch.outputs).toHaveLength(1);
     expect(batch.failures).toHaveLength(0);
   });
+
+  // The Auto-redact decision is snapshotted onto the Batch at creation (ADR
+  // 0006): attended by default, opt-in via the flag, and it must survive every
+  // advance helper so the whole run honours the choice read once at the start.
+  it('snapshots the unattended flag at creation and preserves it across advances', () => {
+    expect(createBatch([file('a.txt')]).unattended).toBe(false);
+
+    let batch = createBatch([file('a.txt'), file('bad.pdf'), file('c.txt')], true);
+    expect(batch.unattended).toBe(true);
+
+    batch = recordSuccess(batch, output('a.redacted.txt'));
+    batch = recordFailure(batch, { filename: 'bad.pdf', reason: 'scanned image' });
+    batch = skipActive(batch);
+    // The flag is unchanged after a success, a failure and a skip.
+    expect(batch.unattended).toBe(true);
+  });
 });
