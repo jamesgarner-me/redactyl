@@ -30,6 +30,7 @@ import { ModelGate } from './ui/ModelGate';
 import { PterodactylMark } from './ui/PterodactylMark';
 import { useTheme } from './ui/useTheme';
 import { useRegexDetection } from './ui/useRegexDetection';
+import { useSaveMapping } from './ui/useSaveMapping';
 import { useAutoRedact } from './ui/useAutoRedact';
 import { useModelGate } from './model/useModelGate';
 import { isDemoEnabled } from './demo/flag';
@@ -60,6 +61,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, toggleTheme] = useTheme();
   const [regexEnabled, setRegexEnabled] = useRegexDetection();
+  const [saveMapping, setSaveMapping] = useSaveMapping();
   const [autoRedact, setAutoRedact] = useAutoRedact();
   const modelWorker = useMemo(() => createModelWorker(), []);
   const model = useModelGate(modelWorker.client);
@@ -115,11 +117,14 @@ export default function App() {
         void processNext(skipActive(batch));
         return;
       }
+      // Unattended output mirrors straight-through attended output (ADR 0006),
+      // so it honours the same global Mapping preference rather than forcing it
+      // off.
       await redactDocument(
         batch,
         doc,
         items.flatMap((item) => item.spans),
-        false,
+        saveMapping,
       );
       return;
     }
@@ -195,6 +200,9 @@ export default function App() {
   // fail-closed outcome (PDF leak, file flagged unsafe) marks the file failed
   // and the Batch continues; a success records the output and advances. Shared
   // by the review screen's Redact button and the unattended Auto-redact path.
+  // Whether a Mapping sidecar is written is the global preference, passed in by
+  // the caller (read at redact time, so a mid-Batch toggle applies to later
+  // files only).
   async function redactDocument(
     batch: Batch,
     doc: Document,
@@ -219,7 +227,10 @@ export default function App() {
     );
   }
 
-  function handleRedact(acceptedSpans: Span[], saveMapping: boolean) {
+  // Whether a Mapping sidecar is written is the global preference (read here at
+  // redact time), not a per-file review choice — so ReviewScreen no longer
+  // passes it.
+  function handleRedact(acceptedSpans: Span[]) {
     if (screen.name !== 'review') return;
     const batch = batchRef.current;
     if (!batch) return;
@@ -284,6 +295,8 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         regexEnabled={regexEnabled}
         onToggleRegex={handleToggleRegex}
+        saveMapping={saveMapping}
+        onToggleSaveMapping={() => setSaveMapping(!saveMapping)}
         autoRedact={autoRedact}
         onToggleAutoRedact={() => setAutoRedact(!autoRedact)}
         // Recovery actions only make sense once the model is cached.
@@ -364,7 +377,6 @@ export default function App() {
             batchPosition={batchPosition}
             items={screen.items}
             locate={screen.document.locate}
-            allowMapping={screen.document.allowMapping}
             safetyWarning={screen.document.safetyWarning}
             advisory={screen.advisory}
             onRedact={handleRedact}

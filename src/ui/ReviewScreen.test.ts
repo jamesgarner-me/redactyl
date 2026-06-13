@@ -36,7 +36,6 @@ function render({
       batchPosition,
       items,
       locate: () => 'row 2, col 2',
-      allowMapping: true,
       safetyWarning,
       advisory,
       onRedact: () => {},
