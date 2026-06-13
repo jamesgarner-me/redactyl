@@ -74,6 +74,14 @@ describe('ReviewScreen — name-column advisory', () => {
     expect(html).toContain(warning);
     expect(html).toContain('disabled');
   });
+
+  // Edge case: in a multi-file Batch an unsafe file must still be skippable so
+  // the user can advance without using Home.
+  it('offers a batch skip affordance when redaction is blocked in a multi-file Batch', () => {
+    const warning = "This PDF is a scanned image — it is NOT sanitised.";
+    const html = render({ safetyWarning: warning, batchPosition: { index: 1, total: 3 } });
+    expect(html).toContain('Skip this file and continue');
+  });
 });
 
 describe('ReviewScreen — batch file header', () => {

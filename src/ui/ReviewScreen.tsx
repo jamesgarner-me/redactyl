@@ -125,6 +125,8 @@ export function ReviewScreen({
   }
 
   const showPosition = !!batchPosition && batchPosition.total > 1;
+  const redactDisabled = accepted.length === 0 || !!safetyWarning;
+  const showBatchSkip = showPosition && redactDisabled;
 
   return (
     <div className="review">
@@ -196,10 +198,15 @@ export function ReviewScreen({
       <RedactButton
         itemCount={accepted.length}
         occurrenceCount={occurrenceCount}
-        disabled={accepted.length === 0 || !!safetyWarning}
+        disabled={redactDisabled}
         reason={safetyWarning ? "This file can't be safely sanitised — no output is produced." : undefined}
         onClick={() => onRedact(accepted.flatMap((v) => v.item.spans))}
       />
+      {showBatchSkip && (
+        <button type="button" className="link-button" onClick={onRedactAnother}>
+          Skip this file and continue
+        </button>
+      )}
     </div>
   );
 }

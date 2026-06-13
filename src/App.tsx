@@ -66,6 +66,11 @@ export default function App() {
   const modelWorker = useMemo(() => createModelWorker(), []);
   const model = useModelGate(modelWorker.client);
   const runIdRef = useRef(0);
+  // Incremented when the user goes Home or starts a new Batch so in-flight async
+  // work from a cancelled run cannot repopulate batchRef or change the screen.
+  const batchSessionRef = useRef(0);
+  const demoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intakeContinueLockRef = useRef(false);
   // The in-flight Batch. Kept in a ref (not state) so the orchestration reads the
   // latest value synchronously across the async open → review → redact loop; the
   // receipt screen snapshots the accumulated outputs/failures when it's shown.
@@ -91,13 +96,15 @@ export default function App() {
   // Detect against the opened Document's text, then enter review carrying the
   // Document so locate/redact/capabilities are read straight off it. Detection
   // returns user-facing Items directly — no grouping step here.
-  async function analyze(doc: Document) {
+  async function analyze(doc: Document, sessionId: number) {
+    if (sessionId !== batchSessionRef.current) return;
     setScreen({ name: 'analyzing', filename: doc.filename });
     const detected = await modelWorker.detector.detect(doc.text, {
       regex: regexEnabledRef.current,
       onProgress: (processed, total) =>
         setScreen((s) => (s.name === 'analyzing' ? { ...s, progress: { processed, total } } : s)),
     });
+    if (sessionId !== batchSessionRef.current) return;
     // Let the Document refine the shared detection (CSV fills in names the model
     // missed in name-titled columns and may raise a non-blocking advisory).
     const refined = doc.refineDetection?.(detected);
@@ -110,21 +117,22 @@ export default function App() {
       if (action === 'quarantine') {
         void processNext(
           recordFailure(batch, { filename: doc.filename, reason: doc.safetyWarning ?? 'unsafe' }),
+          sessionId,
         );
         return;
       }
       if (action === 'skip') {
-        void processNext(skipActive(batch));
+        void processNext(skipActive(batch), sessionId);
         return;
       }
-      // Unattended output mirrors straight-through attended output (ADR 0006),
-      // so it honours the same global Mapping preference rather than forcing it
-      // off.
+      // Unattended output mirrors straight-through attended output (ADR 0006):
+      // accept all Items with no Mapping sidecar.
       await redactDocument(
         batch,
         doc,
         items.flatMap((item) => item.spans),
-        saveMapping,
+        false,
+        sessionId,
       );
       return;
     }
@@ -140,7 +148,8 @@ export default function App() {
   // Open and analyse the Batch's active file, or — when the Batch is done —
   // present the receipt. An open-time failure (e.g. encrypted PDF) marks the
   // file failed and continues with the rest rather than aborting the Batch.
-  async function processNext(batch: Batch) {
+  async function processNext(batch: Batch, sessionId: number) {
+    if (sessionId !== batchSessionRef.current) return;
     batchRef.current = batch;
     if (isComplete(batch)) {
       setScreen({ name: 'receipt', outputs: [...batch.outputs], failures: [...batch.failures] });
@@ -150,18 +159,20 @@ export default function App() {
     if (!file) return;
     setScreen({ name: 'analyzing', filename: file.name });
     const result = await opener.open(file);
+    if (sessionId !== batchSessionRef.current) return;
     if (!result.ok) {
-      void processNext(recordFailure(batch, { filename: file.name, reason: result.message }));
+      void processNext(recordFailure(batch, { filename: file.name, reason: result.message }), sessionId);
       return;
     }
-    await analyze(result.document);
+    await analyze(result.document, sessionId);
   }
 
   // Begin a Batch over the supported, in-cap files chosen at intake. The
   // Auto-redact setting is snapshotted here (ADR 0006) so it's read once at the
   // start and a later settings change can't affect this in-flight Batch.
   function startBatch(files: File[]) {
-    void processNext(createBatch(files, autoRedact));
+    const sessionId = ++batchSessionRef.current;
+    void processNext(createBatch(files, autoRedact), sessionId);
   }
 
   // Assess a drop/selection up front: proceed silently when everything is
@@ -177,11 +188,18 @@ export default function App() {
       startBatch(accepted);
       return;
     }
+    intakeContinueLockRef.current = false;
     setPendingIntake({ accepted, skipped });
   }
 
   function goHome() {
+    batchSessionRef.current += 1;
     batchRef.current = null;
+    intakeContinueLockRef.current = false;
+    if (demoTimerRef.current !== null) {
+      clearTimeout(demoTimerRef.current);
+      demoTimerRef.current = null;
+    }
     setPendingIntake(null);
     setScreen({ name: 'dropzone' });
   }
@@ -193,7 +211,7 @@ export default function App() {
     setRegexEnabled(next);
     regexEnabledRef.current = next; // analyze reads the ref synchronously below
     if (screen.name !== 'review') return;
-    void analyze(screen.document);
+    void analyze(screen.document, batchSessionRef.current);
   }
 
   // Redaction is uniform across sources: ask the Document to redact. A
@@ -208,13 +226,17 @@ export default function App() {
     doc: Document,
     acceptedSpans: Span[],
     saveMapping: boolean,
+    sessionId: number,
   ) {
+    if (sessionId !== batchSessionRef.current) return;
     setScreen({ name: 'redacting', filename: doc.filename });
     // Let the redacting screen paint before the (synchronous) text rewrite.
     await new Promise((resolve) => setTimeout(resolve, 0));
+    if (sessionId !== batchSessionRef.current) return;
     const outcome = await doc.redact(acceptedSpans, { saveMapping });
+    if (sessionId !== batchSessionRef.current) return;
     if (!outcome.ok) {
-      void processNext(recordFailure(batch, { filename: doc.filename, reason: outcome.message }));
+      void processNext(recordFailure(batch, { filename: doc.filename, reason: outcome.message }), sessionId);
       return;
     }
     void processNext(
@@ -224,6 +246,7 @@ export default function App() {
         mapping: outcome.mapping,
         rasterisedPages: outcome.rasterisedPages,
       }),
+      sessionId,
     );
   }
 
@@ -234,7 +257,7 @@ export default function App() {
     if (screen.name !== 'review') return;
     const batch = batchRef.current;
     if (!batch) return;
-    void redactDocument(batch, screen.document, acceptedSpans, saveMapping);
+    void redactDocument(batch, screen.document, acceptedSpans, saveMapping, batchSessionRef.current);
   }
 
   // The review screen's "all clear" affordance. In a single-file Batch this is
@@ -243,7 +266,7 @@ export default function App() {
   function handleReviewDone() {
     const batch = batchRef.current;
     if (batch && batch.files.length > 1) {
-      void processNext(skipActive(batch));
+      void processNext(skipActive(batch), batchSessionRef.current);
       return;
     }
     goHome();
@@ -253,12 +276,19 @@ export default function App() {
   // can be reviewed without a real file. Builds a text Document so it travels
   // the same path as a real file, wrapped in a Batch of one.
   function loadSample() {
+    if (demoTimerRef.current !== null) {
+      clearTimeout(demoTimerRef.current);
+      demoTimerRef.current = null;
+    }
+    const sessionId = ++batchSessionRef.current;
     const sample = sampleReview();
     const doc = createTextDocument(sample.filename, sample.text);
     const file = new File([sample.text], sample.filename, { type: 'text/plain' });
     batchRef.current = createBatch([file]);
     setScreen({ name: 'analyzing', filename: sample.filename });
-    setTimeout(() => {
+    demoTimerRef.current = setTimeout(() => {
+      demoTimerRef.current = null;
+      if (sessionId !== batchSessionRef.current) return;
       setScreen({ name: 'review', id: ++runIdRef.current, document: doc, items: sample.items });
     }, 600);
   }
@@ -337,6 +367,8 @@ export default function App() {
                 acceptedCount={pendingIntake.accepted.length}
                 skipped={pendingIntake.skipped}
                 onContinue={() => {
+                  if (intakeContinueLockRef.current) return;
+                  intakeContinueLockRef.current = true;
                   const { accepted } = pendingIntake;
                   setPendingIntake(null);
                   startBatch(accepted);
