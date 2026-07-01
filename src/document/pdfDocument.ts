@@ -2,6 +2,8 @@ import type { Item, Span } from '../domain/types';
 import { formatPageLocator, itemLines, makePageIndex } from '../domain/locators';
 import { type GlyphBox, type PdfSafety } from '../pdf/pdfExtractor';
 import { redactAndVerifyPdf, type RenderPageToPng } from '../pdf/pdfRedactor';
+import { assignTokens } from '../redaction/tokeniser';
+import { buildMapping, mappingName } from '../redaction/mappingExporter';
 import { type Document, type RedactionOutcome, redactedName } from './document';
 
 // Deps the PDF adapter needs to re-verify its own output: re-detect on the
@@ -38,7 +40,9 @@ function safetyMessage(safety: Exclude<PdfSafety, { kind: 'encrypted' }>): strin
 // true redaction (blank glyphs + black boxes → verify → rasterise leaking pages
 // → re-verify). Redaction is fail-closed: a leak surviving rasterisation, or a
 // file already flagged unsafe, returns a failure result and produces no output.
-// Mapping is not offered for PDFs (allowMapping false).
+// When the user opts into a Mapping sidecar, tokens are assigned from the
+// accepted Spans and recorded; unlike text/CSV those tokens are not written into
+// the output (glyphs are blanked) — the sidecar records what was removed.
 export function createPdfDocument(input: PdfDocumentInput, deps: PdfDocumentDeps): Document {
   const { filename, text, glyphs, bytes, safety } = input;
   const pageAt = makePageIndex(glyphs);
@@ -47,12 +51,11 @@ export function createPdfDocument(input: PdfDocumentInput, deps: PdfDocumentDeps
   return {
     filename,
     text,
-    allowMapping: false,
     safetyWarning,
     locate(item: Item): string {
       return formatPageLocator(itemLines(item, pageAt));
     },
-    async redact(accepted: Span[]): Promise<RedactionOutcome> {
+    async redact(accepted: Span[], { saveMapping }): Promise<RedactionOutcome> {
       // Defence in depth: the UI disables Redact when a safety warning is
       // present, but never produce output for a file we've flagged as unsafe.
       if (safetyWarning) {
@@ -71,10 +74,20 @@ export function createPdfDocument(input: PdfDocumentInput, deps: PdfDocumentDeps
         // Uint8Array.from yields an ArrayBuffer-backed copy (a valid BlobPart);
         // pdf-lib's save() return is typed over the broader ArrayBufferLike.
         const blob = new Blob([Uint8Array.from(outcome.bytes)], { type: 'application/pdf' });
+        const mapping = saveMapping
+          ? {
+              name: mappingName(filename),
+              blob: new Blob(
+                [JSON.stringify(buildMapping(assignTokens(accepted).entries, filename), null, 2)],
+                { type: 'application/json' },
+              ),
+            }
+          : undefined;
         return {
           ok: true,
           outputName: redactedName(filename),
           blob,
+          mapping,
           rasterisedPages: outcome.rasterisedPages,
         };
       } catch {

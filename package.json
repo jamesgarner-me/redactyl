@@ -6,7 +6,10 @@
   "description": "Browser-only PII redaction for documents before pasting into AI tools",
   "license": "MIT",
   "author": "James Garner",
-  "repository": { "type": "git", "url": "https://github.com/jamesgarner-me/redactyl" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamesgarner-me/redactyl"
+  },
   "homepage": "https://redactyl-app.vercel.app",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
@@ -20,6 +23,7 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
+    "fflate": "^0.8.3",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.7.284",
     "react": "^19.1.0",

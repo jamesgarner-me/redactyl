@@ -1,36 +1,21 @@
 import { useRef, useState } from 'react';
 
-const ACCEPTED = ['.pdf', '.txt', '.md', '.csv'];
-
-function extensionOf(name: string): string {
-  const dot = name.lastIndexOf('.');
-  return dot === -1 ? '' : name.slice(dot).toLowerCase();
-}
-
 interface Props {
-  onFile: (file: File) => void;
-  onReject: (message: string) => void;
+  // The dropzone is intentionally dumb about support and counts: it forwards
+  // every dropped/selected file and App's intake decides what to keep, what to
+  // skip (warning modal), and what to reject (all-unsupported error). See ADR
+  // 0005 / slice 05.
+  onFiles: (files: File[]) => void;
   error?: string;
 }
 
-export function FileDropZone({ onFile, onReject, error }: Props) {
+export function FileDropZone({ onFiles, error }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    if (files.length > 1) {
-      onReject(`One file at a time in v1. You dropped ${files.length} files.`);
-      return;
-    }
-    const file = files[0];
-    if (!ACCEPTED.includes(extensionOf(file.name))) {
-      onReject(
-        `Redactyl handles .pdf, .txt, .md and .csv in this build. "${file.name}" isn't supported.`,
-      );
-      return;
-    }
-    onFile(file);
+    onFiles(Array.from(files));
   }
 
   return (
@@ -47,15 +32,16 @@ export function FileDropZone({ onFile, onReject, error }: Props) {
         handleFiles(e.dataTransfer.files);
       }}
     >
-      <p className="dropzone-headline">Drop a file here</p>
+      <p className="dropzone-headline">Drop files here</p>
       <p className="dropzone-or">or</p>
       <button type="button" className="choose-file" onClick={() => inputRef.current?.click()}>
-        Choose a file…
+        Choose files…
       </button>
       <input
         ref={inputRef}
         type="file"
         accept=".txt,.md,.pdf,.csv"
+        multiple
         hidden
         onChange={(e) => {
           handleFiles(e.target.files);

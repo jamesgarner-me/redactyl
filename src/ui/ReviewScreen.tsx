@@ -8,19 +8,20 @@ import { SummaryStrip, type BucketChip } from './SummaryStrip';
 
 interface Props {
   filename: string;
+  // The active file's place in the Batch (1-based). Shown in the review header
+  // so a multi-file user can tell which file's PII they're confirming; the
+  // "File N of M" counter is omitted for a Batch of one.
+  batchPosition?: { index: number; total: number };
   items: Item[];
   // Source-specific locator: line numbers for text, page numbers for PDFs.
   locate: (item: Item) => string;
-  // The mapping sidecar only makes sense for token-substituted text output; the
-  // PDF path blanks glyphs (no tokens), so it hides the option.
-  allowMapping: boolean;
   // When set (a scanned/garbled PDF), a red banner is pinned above the results
   // and redaction is hard-disabled — the file can't be safely sanitised.
   safetyWarning?: string;
   // A non-blocking advisory (e.g. a CSV name column the model recognised no
   // names in). Shown as an amber notice; redaction stays enabled.
   advisory?: string;
-  onRedact: (acceptedSpans: Span[], saveMapping: boolean) => void;
+  onRedact: (acceptedSpans: Span[]) => void;
   onRedactAnother: () => void;
 }
 
@@ -35,9 +36,9 @@ function toggled(set: Set<string>, key: string): Set<string> {
 // remounts per analysis (App keys it) so the state resets for each new file.
 export function ReviewScreen({
   filename,
+  batchPosition,
   items,
   locate,
-  allowMapping,
   safetyWarning,
   advisory,
   onRedact,
@@ -47,8 +48,6 @@ export function ReviewScreen({
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [showDismissed, setShowDismissed] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [saveMapping, setSaveMapping] = useState(false);
 
   // Precompute each Item's key, Bucket, mask flag and locator once.
   const views = useMemo(
@@ -125,8 +124,22 @@ export function ReviewScreen({
     });
   }
 
+  const showPosition = !!batchPosition && batchPosition.total > 1;
+  const redactDisabled = accepted.length === 0 || !!safetyWarning;
+  const showBatchSkip = showPosition && redactDisabled;
+
   return (
     <div className="review">
+      <div className="review-file-header">
+        <span className="review-file-name" title={filename}>
+          {filename}
+        </span>
+        {showPosition && (
+          <span className="review-file-position">
+            File {batchPosition.index} of {batchPosition.total}
+          </span>
+        )}
+      </div>
       {safetyWarning && (
         <p className="safety-banner" role="alert">
           ⚠ {safetyWarning}
@@ -180,42 +193,20 @@ export function ReviewScreen({
           )}
         </div>
       )}
-      {allowMapping && (
-        <div className="advanced-footer">
-          <button
-            type="button"
-            className="link-button"
-            aria-expanded={showAdvanced}
-            onClick={() => setShowAdvanced((s) => !s)}
-          >
-            {showAdvanced ? '▾' : '▸'} Advanced
-          </button>
-          {showAdvanced && (
-            <label className="advanced-option">
-              <input
-                type="checkbox"
-                checked={saveMapping}
-                onChange={() => setSaveMapping((s) => !s)}
-              />
-              <span>
-                Also save a re-identification mapping
-                <span className="advanced-warning">
-                  Anyone with this file can reverse the redaction.
-                </span>
-              </span>
-            </label>
-          )}
-        </div>
-      )}
         </>
       )}
       <RedactButton
         itemCount={accepted.length}
         occurrenceCount={occurrenceCount}
-        disabled={accepted.length === 0 || !!safetyWarning}
+        disabled={redactDisabled}
         reason={safetyWarning ? "This file can't be safely sanitised — no output is produced." : undefined}
-        onClick={() => onRedact(accepted.flatMap((v) => v.item.spans), saveMapping)}
+        onClick={() => onRedact(accepted.flatMap((v) => v.item.spans))}
       />
+      {showBatchSkip && (
+        <button type="button" className="link-button" onClick={onRedactAnother}>
+          Skip this file and continue
+        </button>
+      )}
     </div>
   );
 }

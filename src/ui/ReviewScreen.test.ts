@@ -21,15 +21,21 @@ interface Overrides {
   items?: Item[];
   safetyWarning?: string;
   advisory?: string;
+  batchPosition?: { index: number; total: number };
 }
 
-function render({ items = [personItem('John Smith')], safetyWarning, advisory }: Overrides): string {
+function render({
+  items = [personItem('John Smith')],
+  safetyWarning,
+  advisory,
+  batchPosition,
+}: Overrides): string {
   return renderToStaticMarkup(
     createElement(ReviewScreen, {
       filename: 'people.csv',
+      batchPosition,
       items,
       locate: () => 'row 2, col 2',
-      allowMapping: true,
       safetyWarning,
       advisory,
       onRedact: () => {},
@@ -67,5 +73,31 @@ describe('ReviewScreen — name-column advisory', () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain(warning);
     expect(html).toContain('disabled');
+  });
+
+  // Edge case: in a multi-file Batch an unsafe file must still be skippable so
+  // the user can advance without using Home.
+  it('offers a batch skip affordance when redaction is blocked in a multi-file Batch', () => {
+    const warning = "This PDF is a scanned image — it is NOT sanitised.";
+    const html = render({ safetyWarning: warning, batchPosition: { index: 1, total: 3 } });
+    expect(html).toContain('Skip this file and continue');
+  });
+});
+
+describe('ReviewScreen — batch file header', () => {
+  // Core behaviour: in a multi-file Batch the header names the file under review
+  // and shows its position, so the user knows which file's PII they're confirming.
+  it('shows the filename and "File N of M" position in a multi-file Batch', () => {
+    const html = render({ batchPosition: { index: 2, total: 5 } });
+    expect(html).toContain('people.csv');
+    expect(html).toContain('File 2 of 5');
+  });
+
+  // Edge case: a Batch of one has no ambiguity, so the position counter is
+  // omitted — the filename still shows, but "File 1 of 1" would be noise.
+  it('omits the position counter for a Batch of one', () => {
+    const html = render({ batchPosition: { index: 1, total: 1 } });
+    expect(html).toContain('people.csv');
+    expect(html).not.toContain('File 1 of 1');
   });
 });

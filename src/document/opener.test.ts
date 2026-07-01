@@ -27,7 +27,6 @@ describe('createDocumentOpener', () => {
     if (!result.ok) return;
     expect(result.document.filename).toBe('notes.txt');
     expect(result.document.text).toContain('jane@x.com');
-    expect(result.document.allowMapping).toBe(true);
     const items = await deps.detect(result.document.text);
     const email = items.find((i) => i.value === 'jane@x.com');
     expect(email).toBeDefined();
@@ -142,7 +141,6 @@ describe('createDocumentOpener', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.document.filename).toBe('contacts.csv');
-    expect(result.document.allowMapping).toBe(true);
     const items = await deps.detect(result.document.text);
     const email = items.find((i) => i.value === 'jane@x.com');
     expect(email).toBeDefined();
@@ -164,7 +162,6 @@ describe('createDocumentOpener', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.document.filename).toBe('doc.pdf');
-    expect(result.document.allowMapping).toBe(false);
     expect(result.document.text).toContain('alice@example.com');
   });
 
