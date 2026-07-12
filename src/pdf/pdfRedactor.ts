@@ -124,21 +124,28 @@ export async function redactAndVerifyPdf(
 
 // Re-OCR each flattened page and report whether any accepted value's text
 // survives in the pixels. Comparison is normalised (lowercase, alphanumerics
-// only) to tolerate OCR noise; needles shorter than 4 chars are skipped to avoid
-// spurious matches. A survivor means the redaction box missed — fail closed.
+// only) to tolerate OCR noise. Long needles (4+ chars) use substring matching;
+// shorter ones require an exact word match to avoid spurious hits. A survivor
+// means the redaction box missed — fail closed.
 async function reOcrLeaks(
   bytes: Uint8Array,
   pages: number[],
   values: string[],
   ocr: OcrAugmentDeps,
 ): Promise<boolean> {
-  const needles = values.map(normaliseForOcr).filter((v) => v.length >= 4);
-  if (needles.length === 0) return false;
+  const normalised = values.map(normaliseForOcr).filter((v) => v.length > 0);
+  if (normalised.length === 0) return false;
+  const longNeedles = normalised.filter((v) => v.length >= 4);
+  const shortNeedles = normalised.filter((v) => v.length < 4);
   for (const pageNumber of pages) {
     const { data } = await ocr.render(bytes, pageNumber);
     const words = await ocr.engine.recognizeWords(data);
-    const haystack = normaliseForOcr(words.map((w) => w.text).join(' '));
-    if (needles.some((n) => haystack.includes(n))) return true;
+    const wordTexts = words
+      .map((w) => normaliseForOcr(w.text))
+      .filter((w) => w.length > 0);
+    const haystack = wordTexts.join(' ');
+    if (longNeedles.some((n) => haystack.includes(n))) return true;
+    if (shortNeedles.some((n) => wordTexts.includes(n))) return true;
   }
   return false;
 }

@@ -128,14 +128,19 @@ export function createTesseractEngine(basePath = 'ocr'): OcrEngine {
 
   async function getWorker(): Promise<TesseractWorker> {
     if (!workerPromise) {
-      workerPromise = import('tesseract.js').then(({ createWorker }) =>
-        createWorker('eng', 1, {
-          workerPath: `${import.meta.env.BASE_URL}${basePath}/worker.min.js`,
-          corePath: `${import.meta.env.BASE_URL}${basePath}`,
-          langPath: `${import.meta.env.BASE_URL}${basePath}`,
-          gzip: true,
-        }),
-      );
+      workerPromise = import('tesseract.js')
+        .then(({ createWorker }) =>
+          createWorker('eng', 1, {
+            workerPath: `${import.meta.env.BASE_URL}${basePath}/worker.min.js`,
+            corePath: `${import.meta.env.BASE_URL}${basePath}`,
+            langPath: `${import.meta.env.BASE_URL}${basePath}`,
+            gzip: true,
+          }),
+        )
+        .catch((err) => {
+          workerPromise = null;
+          throw err;
+        });
     }
     return workerPromise;
   }
