@@ -91,8 +91,9 @@ function nameColumnAdvisory(headers: string[]): string {
 // The CSV Document adapter (.csv and sniffed tabular .txt). Parsed into cells at
 // open time; Detect runs on
 // the flattened text, locators report physical row/column, and redaction rewrites
-// accepted values inside their Cells before re-serialising to valid CSV. Mapping
-// is offered (allowMapping) and, like text, redaction never fails closed.
+// accepted values inside their Cells before re-serialising to valid CSV. The
+// optional Mapping sidecar is written when the global save-mapping preference is
+// on and, like text, redaction never fails closed.
 export function createCsvDocument(filename: string, source: string): Document {
   const rows = parseCsv(source);
   const { text, cells } = flatten(rows);
@@ -103,7 +104,6 @@ export function createCsvDocument(filename: string, source: string): Document {
   return {
     filename,
     text,
-    allowMapping: true,
     safetyWarning: undefined,
     locate(item: Item): string {
       return formatCsvLocator(itemCells(item, cellAt));

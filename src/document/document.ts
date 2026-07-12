@@ -13,7 +13,8 @@ export type RedactionOutcome =
       ok: true;
       outputName: string;
       blob: Blob;
-      // Optional re-identification sidecar (text only, on request).
+      // Optional re-identification sidecar, written when the global save-mapping
+      // preference is on. Produced for every Document kind (PDF included).
       mapping?: { name: string; blob: Blob };
       // Pages flattened to images during PDF redaction; absent for text.
       rasterisedPages?: number[];
@@ -32,7 +33,6 @@ export interface RefinedDetection {
 export interface Document {
   readonly filename: string;
   readonly text: string;
-  readonly allowMapping: boolean;
   readonly safetyWarning?: string;
   // The source-specific locator for an Item's Occurrences: line for text,
   // row/column for CSV, page for PDF.

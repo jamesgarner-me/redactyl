@@ -130,9 +130,8 @@ describe('CsvDocument — name-column refinement', () => {
 });
 
 describe('CsvDocument', () => {
-  it('exposes text-source capabilities (mapping allowed, no safety warning)', () => {
+  it('exposes text-source capabilities (no safety warning)', () => {
     const doc = createCsvDocument('contacts.csv', 'name,email\nAlice,a@x.com');
-    expect(doc.allowMapping).toBe(true);
     expect(doc.safetyWarning).toBeUndefined();
   });
 

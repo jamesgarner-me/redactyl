@@ -754,6 +754,29 @@ body {
 }
 
 /* Summary strip */
+.review-file-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.review-file-position {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.review-file-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
 .summary-strip {
   display: flex;
   flex-wrap: wrap;
@@ -880,11 +903,7 @@ body {
   border: none;
 }
 
-/* Advanced footer */
-.advanced-footer {
-  margin: 0 0 1.25rem;
-}
-
+/* Settings options (detection + output prefs) */
 .advanced-option {
   display: flex;
   align-items: flex-start;
@@ -1146,6 +1165,173 @@ body {
   font-size: 0.82rem;
   line-height: 1.45;
   color: var(--text-dim);
+}
+
+/* Batch receipt: a "Save all" zip action above the per-file output cards, plus
+   per-mapping rows inside the (separate) mappings card and a failed-files list. */
+.save-all,
+.save-all-mappings {
+  max-width: 460px;
+  margin: 1.5rem auto 0;
+}
+
+.save-all-mappings {
+  margin-top: 0.5rem;
+}
+
+/* The mappings card is an accordion: a full-width header toggles the (initially
+   hidden) bundle of reversal keys, so they aren't reached for by reflex. */
+.mapping-accordion-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  background: none;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.accordion-chevron {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.mapping-accordion-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.mapping-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.mapping-row .save {
+  width: auto;
+  align-self: flex-start;
+  padding: 0.4rem 0.9rem;
+}
+
+/* Quarantined files (open- or redact-time failures) — clearly separated from
+   the succeeded outputs, in the danger colour, never offering a download. */
+.failed-section {
+  max-width: 460px;
+  margin: 1.5rem auto;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--danger);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  text-align: left;
+}
+
+.failed-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--danger);
+}
+
+.failed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.failed-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.failed-name {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.failed-reason {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+/* Gated-intake warning modal (slice 05) — centred over the dropzone backdrop. */
+.intake-backdrop {
+  align-items: center;
+  justify-content: center;
+}
+
+.intake-modal {
+  width: min(480px, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.intake-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+}
+
+.intake-lead {
+  margin: 0 0 0.75rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.intake-skip-list {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.intake-skip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.intake-skip-name {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.intake-skip-reason {
+  flex: none;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.intake-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.intake-continue {
+  width: auto;
 }
 
 /* Decorative pterodactyl mark — fixed bottom-right, behind all content

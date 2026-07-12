@@ -103,6 +103,24 @@ flowchart TD
     classDef stop fill:#3e7cb1,stroke:#e5484d,color:#06223f,stroke-width:2px;
 ```
 
+### Batches
+
+Drop several files at once and Redactyl works through them as a **batch** — each
+one opened, detected, reviewed and redacted independently (a review header shows
+*File N of M*), then the redacted outputs bundle into a single
+`my-redacted-documents-<date>.zip` you save together (mappings, when enabled,
+ship in a *separate* archive). Unsupported files and any beyond the soft
+ten-file cap are listed and skipped before processing starts; a file that can't
+be opened or redacted is quarantined out of the bundle and listed on the
+receipt, so the rest still succeed. A batch of one is just the single-file flow.
+
+Turn on **Auto-redact** (⚙ → Redaction, off by default) to run a batch
+*unattended*: every detected item is accepted and each file redacted with no
+review, so you don't click through each one. Files that can't be safely
+sanitised are still refused rather than auto-redacted. The setting is read once
+when you open the files, so changing it mid-run doesn't affect the batch in
+flight.
+
 ### Known limitations
 
 - **Browser-printed PDFs are rasterised.** Pages painted through a Form XObject
@@ -147,7 +165,8 @@ Trust boundaries worth knowing:
   sees your documents.
 - **The mapping file is dangerous by design.** The optional
   `*.redactyl-mapping.json` sidecar can reverse a redaction — anyone with it can
-  re-identify. It's off by default; store it carefully.
+  re-identify. It's off by default (a global toggle in ⚙ → **Output**); when on
+  it's produced for every redaction, PDFs included. Store it carefully.
 - **A compromised browser or extension is out of scope** — no in-page tool can
   defend against malware on your machine.
 
@@ -194,8 +213,8 @@ Redactyl persists as little as possible, and nothing sensitive by default.
 | **Your document** | Browser memory (RAM) only | While you're working on it | **Never.** Not written to disk, not uploaded. Gone when you close the tab. |
 | **NER model weights (~770 MB)** | Cache Storage (`transformers-cache`) | After you click *Download* | Downloaded *from* HuggingFace once; never uploaded. |
 | **App shell + worker + ONNX WASM** | Service-worker precache (Cache Storage) | On first visit | Downloaded *from* Vercel once; enables offline use. |
-| **Redacted output / mapping file** | Your local disk | Only when you click *Save* | Only where *you* save it. Nothing auto-downloads. |
-| **Theme + detection preferences** | `localStorage` (`redactyl-theme`, …) | When you change them | Never. Plain UI state, no PII. |
+| **Redacted output(s) / mapping file(s)** | Your local disk | Only when you click *Save* (or *Save all* as a `.zip`) | Only where *you* save it. Nothing auto-downloads. |
+| **Theme, detection & redaction preferences** | `localStorage` (`redactyl-theme`, `redactyl-save-mapping-v1`, `redactyl-auto-redact-v1`, …) | When you change them | Never. Plain UI state, no PII. |
 
 Clearing the model cache (⚙ → **Clear cache**) wipes `transformers-cache` and
 returns you to the download gate. Clearing site data removes everything above.
