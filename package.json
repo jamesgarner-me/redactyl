@@ -6,11 +6,17 @@
   "description": "Browser-only PII redaction for documents before pasting into AI tools",
   "license": "MIT",
   "author": "James Garner",
-  "repository": { "type": "git", "url": "https://github.com/jamesgarner-me/redactyl" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamesgarner-me/redactyl"
+  },
   "homepage": "https://redactyl-app.vercel.app",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "copy-ocr-assets": "node scripts/copy-ocr-assets.mjs",
+    "predev": "node scripts/copy-ocr-assets.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-ocr-assets.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -23,7 +29,8 @@
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.7.284",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -35,6 +42,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "tesseract.js-core": "7.0.0",
     "typescript": "^5.8.0",
     "typescript-eslint": "^8.60.1",
     "vite": "^7.0.0",

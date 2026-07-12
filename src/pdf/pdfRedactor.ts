@@ -28,6 +28,7 @@ import {
 import type { Item, Span } from '../domain/types';
 import { spansToItems } from '../domain/items';
 import type { GlyphBox } from './pdfExtractor';
+import type { OcrAugmentDeps } from './pdfOcr';
 import { verifyPdf } from './pdfVerifier';
 
 const latin1 = new TextDecoder('latin1');
@@ -63,13 +64,21 @@ export async function redactPdf(
 // The full true-redaction pipeline: rewrite + verify, then rasterise any page
 // that still leaks and re-verify. Returns fail-closed (`ok: false`) if a leak
 // survives even rasterisation. Matches the PRD's PDF redaction pipeline.
+//
+// `forcedRasterPages` (OCR'd image pages) are *always* flattened regardless of
+// the text-verify oracle: their PII lives in raster pixels the oracle can't see,
+// and a vector box alone would leave the scan extractable. When OCR is available
+// those pages are also re-OCR'd to confirm no accepted value survives — a
+// defence against a mis-placed box — and fail closed if one does.
 export async function redactAndVerifyPdf(
   source: Uint8Array,
   acceptedSpans: Span[],
   glyphs: GlyphBox[],
+  forcedRasterPages: number[],
   deps: {
     detect: (text: string) => Item[] | Promise<Item[]>;
     renderPage: RenderPageToPng;
+    ocr?: OcrAugmentDeps;
   },
 ): Promise<RedactionOutcome> {
   const expectedAbsent = spansToItems(acceptedSpans);
@@ -80,20 +89,62 @@ export async function redactAndVerifyPdf(
   drawRedactionBoxes(doc, acceptedSpans, glyphs);
   let bytes = await doc.save();
 
-  let result = await verifyPdf(bytes, expectedAbsent, deps.detect);
-  if (result.ok) return { bytes, ok: true, rasterisedPages: [] };
+  // Force-flatten OCR'd image pages first, before trusting any verify: the box is
+  // now drawn, so rendering bakes it into pixels and `rasterisePage` drops the
+  // original scan image entirely.
+  const forced = [...new Set(forcedRasterPages)].sort((a, b) => a - b);
+  for (const pageNumber of forced) {
+    const png = await deps.renderPage(bytes, pageNumber);
+    await rasterisePage(doc, pageNumber, png);
+  }
+  if (forced.length) bytes = await doc.save();
 
-  // Residual text on some pages (tricky fonts). Flatten each to an image of the
+  // Re-OCR the flattened pages to confirm the redacted values are gone from the
+  // pixels — the text oracle is blind to image PII. Any reappearance fails closed.
+  if (forced.length && deps.ocr && (await reOcrLeaks(bytes, forced, values, deps.ocr))) {
+    return { bytes, ok: false, rasterisedPages: forced };
+  }
+
+  let result = await verifyPdf(bytes, expectedAbsent, deps.detect);
+  if (result.ok) return { bytes, ok: true, rasterisedPages: forced };
+
+  // Residual text on other pages (tricky fonts). Flatten each to an image of the
   // already-box-drawn render, so the PII is both covered and unselectable.
-  const rasterisedPages = result.leakPages;
-  for (const pageNumber of rasterisedPages) {
+  const leakPages = result.leakPages.filter((p) => !forced.includes(p));
+  for (const pageNumber of leakPages) {
     const png = await deps.renderPage(bytes, pageNumber);
     await rasterisePage(doc, pageNumber, png);
   }
   bytes = await doc.save();
 
+  const rasterisedPages = [...forced, ...leakPages].sort((a, b) => a - b);
   result = await verifyPdf(bytes, expectedAbsent, deps.detect);
   return { bytes, ok: result.ok, rasterisedPages };
+}
+
+// Re-OCR each flattened page and report whether any accepted value's text
+// survives in the pixels. Comparison is normalised (lowercase, alphanumerics
+// only) to tolerate OCR noise; needles shorter than 4 chars are skipped to avoid
+// spurious matches. A survivor means the redaction box missed — fail closed.
+async function reOcrLeaks(
+  bytes: Uint8Array,
+  pages: number[],
+  values: string[],
+  ocr: OcrAugmentDeps,
+): Promise<boolean> {
+  const needles = values.map(normaliseForOcr).filter((v) => v.length >= 4);
+  if (needles.length === 0) return false;
+  for (const pageNumber of pages) {
+    const { data } = await ocr.render(bytes, pageNumber);
+    const words = await ocr.engine.recognizeWords(data);
+    const haystack = normaliseForOcr(words.map((w) => w.text).join(' '));
+    if (needles.some((n) => haystack.includes(n))) return true;
+  }
+  return false;
+}
+
+function normaliseForOcr(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 // Replace a page's content with a single full-page image, dropping every text

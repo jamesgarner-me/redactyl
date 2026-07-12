@@ -4,7 +4,8 @@ import type { Item, Span } from './domain/types';
 import { createTextDocument } from './document/textDocument';
 import { createDocumentOpener } from './document/opener';
 import type { Document } from './document/document';
-import { renderPageToPng } from './pdf/pdfRender';
+import { renderPageToPng, renderPageToImageData } from './pdf/pdfRender';
+import { createTesseractEngine } from './pdf/pdfOcr';
 import { TopBar } from './ui/TopBar';
 import { FileDropZone } from './ui/FileDropZone';
 import { DropzoneIntro } from './ui/DropzoneIntro';
@@ -24,7 +25,13 @@ import { sampleReview } from './demo/sampleDocument';
 // vs PDF) lives entirely behind the Document seam, never branched here.
 type Screen =
   | { name: 'dropzone'; error?: string }
-  | { name: 'analyzing'; filename: string; progress?: { processed: number; total: number } }
+  | {
+      name: 'analyzing';
+      filename: string;
+      progress?: { processed: number; total: number };
+      // Per-page OCR progress for a scanned PDF, shown before detection begins.
+      ocr?: { processed: number; total: number };
+    }
   | { name: 'review'; id: number; document: Document; items: Item[]; advisory?: string }
   | { name: 'redacting'; filename: string }
   | {
@@ -42,6 +49,9 @@ export default function App() {
   const [regexEnabled, setRegexEnabled] = useRegexDetection();
   const modelWorker = useMemo(() => createModelWorker(), []);
   const model = useModelGate(modelWorker.client);
+  // One Tesseract engine for the session — its worker is created lazily on the
+  // first scanned page and reused across files.
+  const ocrEngine = useMemo(() => createTesseractEngine(), []);
   const runIdRef = useRef(0);
 
   // The opener (and the PdfDocuments it builds) is constructed once, but PDF
@@ -57,8 +67,9 @@ export default function App() {
       createDocumentOpener({
         detect: (t) => modelWorker.detector.detect(t, { regex: regexEnabledRef.current }),
         renderPage: renderPageToPng,
+        ocr: { render: renderPageToImageData, engine: ocrEngine },
       }),
-    [modelWorker],
+    [modelWorker, ocrEngine],
   );
 
   // Detect against the opened Document's text, then enter review carrying the
@@ -86,7 +97,11 @@ export default function App() {
 
   async function handleFile(file: File) {
     setScreen({ name: 'analyzing', filename: file.name });
-    const result = await opener.open(file);
+    const result = await opener.open(file, (p) =>
+      setScreen((s) =>
+        s.name === 'analyzing' ? { ...s, ocr: { processed: p.processed, total: p.total } } : s,
+      ),
+    );
     if (!result.ok) {
       setScreen({ name: 'dropzone', error: result.message });
       return;
@@ -216,7 +231,13 @@ export default function App() {
           </>
         );
       case 'analyzing':
-        return <Analyzing filename={screen.filename} label="Analyzing…" progress={screen.progress} />;
+        // OCR of a scanned PDF runs before detection; show its per-page progress
+        // with a distinct label until it finishes and detection takes over.
+        return screen.ocr && (screen.ocr.processed < screen.ocr.total || !screen.progress) ? (
+          <Analyzing filename={screen.filename} label="Reading scanned pages…" progress={screen.ocr} />
+        ) : (
+          <Analyzing filename={screen.filename} label="Analyzing…" progress={screen.progress} />
+        );
       case 'redacting':
         return <Analyzing filename={screen.filename} label="Redacting…" />;
       case 'receipt':

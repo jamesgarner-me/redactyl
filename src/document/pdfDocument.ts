@@ -1,15 +1,20 @@
 import type { Item, Span } from '../domain/types';
 import { formatPageLocator, itemLines, makePageIndex } from '../domain/locators';
 import { type GlyphBox, type PdfSafety } from '../pdf/pdfExtractor';
+import type { OcrAugmentDeps } from '../pdf/pdfOcr';
 import { redactAndVerifyPdf, type RenderPageToPng } from '../pdf/pdfRedactor';
 import { type Document, type RedactionOutcome, redactedName } from './document';
 
 // Deps the PDF adapter needs to re-verify its own output: re-detect on the
-// rewritten text, and rasterise a page that still leaks. Injected once (at
-// opener construction) so open()/redact() stay dep-free at the call site.
+// rewritten text, rasterise a page that still leaks, and (when OCR is available)
+// re-OCR flattened image pages to confirm the redacted values are gone. Injected
+// once (at opener construction) so open()/redact() stay dep-free at the call site.
 export interface PdfDocumentDeps {
   detect: (text: string) => Item[] | Promise<Item[]>;
   renderPage: RenderPageToPng;
+  // OCR engine + pixel renderer. Present enables OCR of scanned pages at open
+  // time and re-OCR verification of flattened pages at redact time.
+  ocr?: OcrAugmentDeps;
 }
 
 export interface PdfDocumentInput {
@@ -22,15 +27,19 @@ export interface PdfDocumentInput {
   // The non-fatal safety result (scanned/garbled). Encrypted never reaches here
   // — the opener turns it into an open failure instead.
   safety: Exclude<PdfSafety, { kind: 'encrypted' }> | null;
+  // Pages whose text came from OCR — redaction must flatten them to destroy the
+  // scan pixels a vector box alone would leave extractable.
+  imageTextPages: number[];
 }
 
 // Banner copy for a non-fatal PDF safety issue (scanned/garbled). Both block
-// redaction and stress that the file is NOT sanitised.
+// redaction and stress that the file is NOT sanitised. A `scanned` warning only
+// survives to here when OCR could not read the page (it failed or was disabled).
 function safetyMessage(safety: Exclude<PdfSafety, { kind: 'encrypted' }>): string {
   const pages = safety.pages.join(', ');
   const plural = safety.pages.length > 1 ? 's' : '';
   return safety.kind === 'scanned'
-    ? `Page${plural} ${pages} appear to be scans with no text layer. v1 doesn't OCR, so this file is NOT sanitised — don't paste it into an AI tool assuming it's clean.`
+    ? `Page${plural} ${pages} are scans Redactyl couldn't read, so this file is NOT sanitised — don't paste it into an AI tool assuming it's clean.`
     : `Page${plural} ${pages} produced unreadable text, so detection can't be trusted. This file is NOT sanitised.`;
 }
 
@@ -40,7 +49,7 @@ function safetyMessage(safety: Exclude<PdfSafety, { kind: 'encrypted' }>): strin
 // file already flagged unsafe, returns a failure result and produces no output.
 // Mapping is not offered for PDFs (allowMapping false).
 export function createPdfDocument(input: PdfDocumentInput, deps: PdfDocumentDeps): Document {
-  const { filename, text, glyphs, bytes, safety } = input;
+  const { filename, text, glyphs, bytes, safety, imageTextPages } = input;
   const pageAt = makePageIndex(glyphs);
   const safetyWarning = safety ? safetyMessage(safety) : undefined;
 
@@ -59,7 +68,7 @@ export function createPdfDocument(input: PdfDocumentInput, deps: PdfDocumentDeps
         return { ok: false, message: safetyWarning };
       }
       try {
-        const outcome = await redactAndVerifyPdf(bytes, accepted, glyphs, deps);
+        const outcome = await redactAndVerifyPdf(bytes, accepted, glyphs, imageTextPages, deps);
         if (!outcome.ok) {
           // A leak survived even the rasterise fallback — fail closed.
           return {

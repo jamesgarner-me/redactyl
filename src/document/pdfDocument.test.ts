@@ -22,7 +22,7 @@ async function openPdf(text: string) {
 describe('PdfDocument', () => {
   it('exposes PDF-source capabilities', () => {
     const doc = createPdfDocument(
-      { filename: 'r.pdf', text: '', glyphs: [], bytes: new Uint8Array(), safety: null },
+      { filename: 'r.pdf', text: '', glyphs: [], bytes: new Uint8Array(), safety: null, imageTextPages: [] },
       deps,
     );
     expect(doc.allowMapping).toBe(false);
@@ -32,7 +32,7 @@ describe('PdfDocument', () => {
   it('locates an Item by the pages its Occurrences fall on', async () => {
     const { extracted, glyphs, bytes } = await openPdf('SSN 123-45-6789 here.');
     const doc = createPdfDocument(
-      { filename: 'r.pdf', text: extracted, glyphs, bytes, safety: null },
+      { filename: 'r.pdf', text: extracted, glyphs, bytes, safety: null, imageTextPages: [] },
       deps,
     );
     const [item] = detect(extracted);
@@ -42,7 +42,7 @@ describe('PdfDocument', () => {
   it('true-redacts a clean PDF and verifies it clean', async () => {
     const { extracted, glyphs, bytes } = await openPdf('SSN 123-45-6789 for Jane.');
     const doc = createPdfDocument(
-      { filename: 'r.pdf', text: extracted, glyphs, bytes, safety: null },
+      { filename: 'r.pdf', text: extracted, glyphs, bytes, safety: null, imageTextPages: [] },
       deps,
     );
     const accepted = detect(extracted).flatMap((i) => i.spans);
@@ -62,6 +62,7 @@ describe('PdfDocument', () => {
         glyphs: [],
         bytes: new Uint8Array(),
         safety: { kind: 'scanned', pages: [1, 2] },
+        imageTextPages: [],
       },
       deps,
     );
@@ -84,7 +85,7 @@ describe('PdfDocument', () => {
       renderPage: async () => PIXEL_PNG,
     };
     const doc = createPdfDocument(
-      { filename: 'r.pdf', text, glyphs, bytes, safety: null },
+      { filename: 'r.pdf', text, glyphs, bytes, safety: null, imageTextPages: [] },
       alwaysLeaks,
     );
     const outcome = await doc.redact(spans, { saveMapping: false });
