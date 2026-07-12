@@ -62,7 +62,7 @@ describe('PDF corpus regression (slice 8–10)', () => {
 
         const spans = runDetectors(text);
         const items = spansToItems(spans);
-        const outcome = await redactAndVerifyPdf(bytes, spans, glyphs, { detect, renderPage });
+        const outcome = await redactAndVerifyPdf(bytes, spans, glyphs, [], { detect, renderPage });
 
         // (1) fail-closed verification passed
         expect(outcome.ok).toBe(true);

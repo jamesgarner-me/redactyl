@@ -173,6 +173,28 @@ describe('createDocumentOpener', () => {
     expect(result.document.safetyWarning).toContain('NOT sanitised');
   });
 
+  it('OCRs a scanned PDF when an engine is available, clearing the safety block', async () => {
+    // Stub OCR: a fixed renderer + engine that "reads" an email off the scan.
+    const ocrOpener = createDocumentOpener({
+      ...deps,
+      ocr: {
+        render: async () => ({ data: {} as ImageData, userWidth: 300, userHeight: 200, scale: 2 }),
+        engine: {
+          recognizeWords: async () => [
+            { text: 'alice@example.com', x0: 20, y0: 20, x1: 280, y1: 40, line: 0 },
+          ],
+        },
+      },
+    });
+    const result = await ocrOpener.open(pdfFile(await buildScannedPdf(), 'scan.pdf'));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.safetyWarning).toBeUndefined();
+    expect(result.document.text).toContain('alice@example.com');
+    const [email] = await deps.detect(result.document.text);
+    expect(result.document.locate(email)).toBe('p. 1');
+  });
+
   it('fails to open an encrypted PDF with the password message', async () => {
     const bytes = await buildEncryptedPdf();
     const result = await opener.open(pdfFile(bytes, 'locked.pdf'));

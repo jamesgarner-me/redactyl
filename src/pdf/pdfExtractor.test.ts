@@ -11,6 +11,8 @@ describe('extractPdf', () => {
     expect(pageCount).toBe(1);
     expect(safety).toBeNull();
     expect(text).toContain('alice@example.com');
+    // A clean text PDF has no OCR'd pages.
+    expect((await extractPdf(bytes)).imageTextPages).toEqual([]);
     // One box per visible character, all on page 1, with positive geometry.
     const visible = text.replace(/\n/g, '');
     expect(glyphs).toHaveLength(visible.length);

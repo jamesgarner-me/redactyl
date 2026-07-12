@@ -28,8 +28,9 @@ export default defineConfig({
       workbox: {
         // The bundled wasm/transformers chunks dwarf workbox's 2 MB default, but
         // they're exactly the deps the offline NER path needs — raise the ceiling
-        // so they're precached rather than silently skipped.
-        globPatterns: ['**/*.{js,css,html,wasm}'],
+        // so they're precached rather than silently skipped. `gz` covers the
+        // self-hosted Tesseract language data (public/ocr/eng.traineddata.gz).
+        globPatterns: ['**/*.{js,css,html,wasm,gz}'],
         maximumFileSizeToCacheInBytes: 30 * 1024 * 1024,
       },
       manifest: {
