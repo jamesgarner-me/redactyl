@@ -5,8 +5,8 @@ A browser-only tool that finds personal data in PDFs, text files and CSV exports
 ## Language
 
 **Document**:
-The opened file the user is redacting — its extracted text together with whatever the source format needs to locate **Occurrences** and produce a sanitised copy. **Detect** runs on a Document's text; **Redact** produces a new Document of the same kind.
-_Kinds_: **text** (`.txt` / `.md`), **CSV** (`.csv`, or tabular comma-separated content in a `.txt` file detected at open time — see [ADR 0004](./docs/adr/0004-csv-cell-flattening-for-detect.md)) and **PDF**. The kind decides how Occurrences are located (line vs row/column vs page). A sniffed `.txt` keeps its original filename on save (`contacts.txt` → `contacts.redacted.txt`) even though redaction uses the CSV cell adapter.
+The text the user is redacting — whether extracted from an opened file or **Pasted** directly — together with whatever the source needs to locate **Occurrences** and produce a sanitised copy. **Detect** runs on a Document's text; **Redact** produces a new Document of the same kind.
+_Kinds_: **text** (`.txt` / `.md`, or **Pasted** text), **CSV** (`.csv`, or tabular comma-separated content in a `.txt` file detected at open time — see [ADR 0004](./docs/adr/0004-csv-cell-flattening-for-detect.md)) and **PDF**. The kind decides how Occurrences are located (line vs row/column vs page). A sniffed `.txt` keeps its original filename on save (`contacts.txt` → `contacts.redacted.txt`) even though redaction uses the CSV cell adapter. **Pasted** text has no file, so it is given a synthetic identity (`pasted-text` → `pasted-text.redacted.txt`).
 _Avoid_: file (the raw upload before extraction), input.
 
 **Batch**:
@@ -16,6 +16,10 @@ _Avoid_: queue, set, session, job.
 **Cell**:
 A single field in a **CSV** **Document** — one row/column intersection. The atomic unit for CSV occurrence location and redaction; **Detect** still runs on the Document's flattened `text`, but **Redact** replaces values inside Cells, not across cell boundaries.
 _Avoid_: field, column value.
+
+**Paste**:
+Enter a **Document**'s text directly — via the clipboard or by typing — instead of opening a file. Produces a text-kind Document with a synthetic identity (`pasted-text`); from **Detect** onward it is indistinguishable from an opened `.txt`.
+_Avoid_: import, snippet, input.
 
 **Detect**:
 Identify ranges of text that might be personal data, via a regex layer and an NER layer.

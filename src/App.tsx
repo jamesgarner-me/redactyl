@@ -26,6 +26,8 @@ import { DropzoneIntro } from './ui/DropzoneIntro';
 import { Analyzing } from './ui/Analyzing';
 import { ReviewScreen } from './ui/ReviewScreen';
 import { Receipt } from './ui/Receipt';
+import { PasteScreen } from './ui/PasteScreen';
+import { PASTED_TEXT_FILENAME } from './ui/pasteConstants';
 import { SettingsSheet } from './ui/SettingsSheet';
 import { ModelGate } from './ui/ModelGate';
 import { PterodactylMark } from './ui/PterodactylMark';
@@ -43,6 +45,7 @@ import { sampleReview } from './demo/sampleDocument';
 // accumulated output and any files that failed.
 type Screen =
   | { name: 'dropzone'; error?: string }
+  | { name: 'paste' }
   | {
       name: 'analyzing';
       filename: string;
@@ -208,6 +211,13 @@ export default function App() {
     }
     intakeContinueLockRef.current = false;
     setPendingIntake({ accepted, skipped });
+  }
+
+  // Pasted text is wrapped in a synthetic File and run through the same opener
+  // → detect → review → redact pipeline as an opened .txt (ADR 0007).
+  function handlePastedText(text: string) {
+    const file = new File([text], PASTED_TEXT_FILENAME, { type: 'text/plain' });
+    startBatch([file]);
   }
 
   function goHome() {
@@ -379,6 +389,15 @@ export default function App() {
             <div className="dropzone-panel">
               <DropzoneIntro />
               <FileDropZone onFiles={handleFiles} error={screen.error} />
+              <p className="dropzone-paste-affordance">
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => setScreen({ name: 'paste' })}
+                >
+                  or paste text…
+                </button>
+              </p>
             </div>
             {pendingIntake && (
               <IntakeWarningModal
@@ -400,6 +419,13 @@ export default function App() {
               </button>
             )}
           </>
+        );
+      case 'paste':
+        return (
+          <PasteScreen
+            onAnalyze={handlePastedText}
+            onCancel={() => setScreen({ name: 'dropzone' })}
+          />
         );
       case 'analyzing':
         // OCR of a scanned PDF runs before detection; show its per-page progress
