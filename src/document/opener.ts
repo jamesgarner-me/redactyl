@@ -1,4 +1,5 @@
-import { extractPdf } from '../pdf/pdfExtractor';
+import { assemble, extractPages } from '../pdf/pdfExtractor';
+import { augmentWithOcr, type OcrProgress } from '../pdf/pdfOcr';
 import { createTextDocument } from './textDocument';
 import { createCsvDocument } from './csvDocument';
 import { CsvParseError, looksLikeCsv } from '../csv/csvParser';
@@ -11,33 +12,51 @@ import type { Document } from './document';
 export type OpenOutcome = { ok: true; document: Document } | { ok: false; message: string };
 
 export interface DocumentOpener {
-  open(file: File): Promise<OpenOutcome>;
+  // `onOcrProgress` reports per-page OCR progress for scanned PDFs so the
+  // analyzing screen can show it; omitted for the non-PDF/non-scanned paths.
+  open(file: File, onOcrProgress?: (progress: OcrProgress) => void): Promise<OpenOutcome>;
 }
 
 // The single place a raw file becomes a Document. Owns extension dispatch, PDF
-// extraction, and open-time error handling — so App never branches on source.
-// The PDF verify deps are captured here (built once at construction); the text
-// adapter ignores them.
+// extraction + OCR augmentation, and open-time error handling — so App never
+// branches on source. The PDF verify/OCR deps are captured here (built once at
+// construction); the text adapter ignores them.
 export function createDocumentOpener(deps: PdfDocumentDeps): DocumentOpener {
   return {
-    async open(file: File): Promise<OpenOutcome> {
+    async open(file, onOcrProgress): Promise<OpenOutcome> {
       try {
         if (/\.pdf$/i.test(file.name)) {
-          // Keep the original bytes — extractPdf copies internally (pdfjs neuters
-          // its input), so the same buffer feeds redaction later.
+          // Keep the original bytes — extraction copies internally (pdfjs neuters
+          // its input), so the same buffer feeds OCR and redaction later.
           const bytes = new Uint8Array(await file.arrayBuffer());
-          const { text, glyphs, safety } = await extractPdf(bytes);
+          const result = await extractPages(bytes);
+          let extracted = assemble(result);
           // Encrypted is fatal: no usable text, so fail rather than show a list.
-          if (safety?.kind === 'encrypted') {
+          if (extracted.safety?.kind === 'encrypted') {
             return {
               ok: false,
               message: 'This PDF is password-protected. Decrypt it first, then try again.',
             };
           }
+          // A scan with no text layer: recover text via OCR so it can be reviewed
+          // and redacted. Pages OCR can't handle stay `scanned` (blocked).
+          if (!result.encrypted && extracted.safety?.kind === 'scanned' && deps.ocr) {
+            const pages = await augmentWithOcr(bytes, result.pages, deps.ocr, onOcrProgress);
+            extracted = assemble({ encrypted: false, pages });
+          }
+          const { text, glyphs, safety, imageTextPages } = extracted;
           return {
             ok: true,
             document: createPdfDocument(
-              { filename: file.name, text, glyphs, bytes, safety: safety ?? null },
+              {
+                filename: file.name,
+                text,
+                glyphs,
+                bytes,
+                // Encrypted returned above; narrow the remaining safety kinds.
+                safety: safety && safety.kind !== 'encrypted' ? safety : null,
+                imageTextPages,
+              },
               deps,
             ),
           };

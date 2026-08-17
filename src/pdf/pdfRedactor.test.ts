@@ -5,9 +5,12 @@ import { describe, expect, it } from 'vitest';
 import { extractPdf } from './pdfExtractor';
 import { redactPdf, redactAndVerifyPdf } from './pdfRedactor';
 import { verifyPdf } from './pdfVerifier';
-import { buildPdf, buildXObjectPdf, buildKerningSplitPdf, PIXEL_PNG } from './pdfTestUtils';
+import { buildPdf, buildXObjectPdf, buildKerningSplitPdf, buildScannedPdf, PIXEL_PNG } from './pdfTestUtils';
 import { runDetectors } from '../detection/patterns';
 import { spansToItems } from '../domain/items';
+import type { OcrWord } from './pdfOcr';
+import type { RenderedPage } from './pdfRender';
+import type { Span } from '../domain/types';
 
 // Regex-only detection surface — the same Spans → Items reduction the worker
 // runs, without the model. `runDetectors` is used directly where raw Spans are
@@ -98,7 +101,7 @@ describe('redactAndVerifyPdf — rasterise fallback', () => {
     const rewriteOnly = await redactPdf(bytes, runDetectors(text), glyphs);
     expect((await verifyPdf(rewriteOnly, detect(text), detect)).ok).toBe(false);
 
-    const outcome = await redactAndVerifyPdf(bytes, runDetectors(text), glyphs, { detect, renderPage });
+    const outcome = await redactAndVerifyPdf(bytes, runDetectors(text), glyphs, [], { detect, renderPage });
 
     expect(outcome.ok).toBe(true);
     expect(outcome.rasterisedPages).toEqual([1]);
@@ -110,7 +113,7 @@ describe('redactAndVerifyPdf — rasterise fallback', () => {
     const bytes = await buildPdf([['Plain alice@example.com here']]);
     const { text, glyphs } = await extractPdf(bytes);
 
-    const outcome = await redactAndVerifyPdf(bytes, runDetectors(text), glyphs, { detect, renderPage });
+    const outcome = await redactAndVerifyPdf(bytes, runDetectors(text), glyphs, [], { detect, renderPage });
 
     expect(outcome.ok).toBe(true);
     expect(outcome.rasterisedPages).toEqual([]);
@@ -125,10 +128,49 @@ describe('redactAndVerifyPdf — rasterise fallback', () => {
     // simulating a leak rasterisation can't clear. The pipeline must refuse.
     const alwaysLeaks = () => spansToItems(spans);
 
-    const outcome = await redactAndVerifyPdf(bytes, spans, glyphs, {
+    const outcome = await redactAndVerifyPdf(bytes, spans, glyphs, [], {
       detect: alwaysLeaks,
       renderPage,
     });
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.rasterisedPages).toEqual([1]);
+  });
+});
+
+describe('redactAndVerifyPdf — OCR image pages', () => {
+  const renderPage = async () => PIXEL_PNG;
+  const rendered: RenderedPage = { data: {} as ImageData, userWidth: 0, userHeight: 0, scale: 2 };
+  // A re-OCR engine that sees no text (redaction covered the pixels).
+  const ocrClean = { render: async () => rendered, engine: { recognizeWords: async (): Promise<OcrWord[]> => [] } };
+  // A scanned page's text lives in pixels, so its accepted span carries no glyph.
+  const span: Span = { start: 0, end: 17, category: 'EMAIL', value: 'alice@example.com' };
+
+  it('always flattens an OCR page, even though the text oracle would pass it', async () => {
+    const bytes = await buildScannedPdf();
+
+    // Without forcing, the image-only page has no text to leak → nothing rasterised.
+    const notForced = await redactAndVerifyPdf(bytes, [span], [], [], { detect, renderPage, ocr: ocrClean });
+    expect(notForced.rasterisedPages).toEqual([]);
+
+    // Forcing page 1 flattens it regardless, destroying the scan pixels.
+    const forced = await redactAndVerifyPdf(bytes, [span], [], [1], { detect, renderPage, ocr: ocrClean });
+    expect(forced.ok).toBe(true);
+    expect(forced.rasterisedPages).toEqual([1]);
+  });
+
+  it('fails closed when re-OCR still finds a redacted value on a flattened page', async () => {
+    const bytes = await buildScannedPdf();
+    const ocrLeaks = {
+      render: async () => rendered,
+      engine: {
+        recognizeWords: async (): Promise<OcrWord[]> => [
+          { text: 'alice@example.com', x0: 0, y0: 0, x1: 10, y1: 10, line: 0 },
+        ],
+      },
+    };
+
+    const outcome = await redactAndVerifyPdf(bytes, [span], [], [1], { detect, renderPage, ocr: ocrLeaks });
 
     expect(outcome.ok).toBe(false);
     expect(outcome.rasterisedPages).toEqual([1]);

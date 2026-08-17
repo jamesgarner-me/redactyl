@@ -15,3 +15,6 @@ test-results/
 
 # Throwaway scratch (reports, spikes) — issues/PRDs under .scratch/ are tracked
 .scratch/tmp/
+
+# Self-hosted OCR assets — regenerated from node_modules by scripts/copy-ocr-assets.mjs
+public/ocr/

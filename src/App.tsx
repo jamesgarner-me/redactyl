@@ -4,7 +4,8 @@ import type { Item, Span } from './domain/types';
 import { createTextDocument } from './document/textDocument';
 import { createDocumentOpener } from './document/opener';
 import type { Document } from './document/document';
-import { renderPageToPng } from './pdf/pdfRender';
+import { renderPageToPng, renderPageToImageData } from './pdf/pdfRender';
+import { createTesseractEngine } from './pdf/pdfOcr';
 import {
   activeFile,
   createBatch,
@@ -45,7 +46,13 @@ import { sampleReview } from './demo/sampleDocument';
 type Screen =
   | { name: 'dropzone'; error?: string }
   | { name: 'paste' }
-  | { name: 'analyzing'; filename: string; progress?: { processed: number; total: number } }
+  | {
+      name: 'analyzing';
+      filename: string;
+      progress?: { processed: number; total: number };
+      // Per-page OCR progress for a scanned PDF, shown before detection begins.
+      ocr?: { processed: number; total: number };
+    }
   | { name: 'review'; id: number; document: Document; items: Item[]; advisory?: string }
   | { name: 'redacting'; filename: string }
   | { name: 'receipt'; outputs: BatchOutput[]; failures: BatchFailure[] };
@@ -68,6 +75,9 @@ export default function App() {
   const [autoRedact, setAutoRedact] = useAutoRedact();
   const modelWorker = useMemo(() => createModelWorker(), []);
   const model = useModelGate(modelWorker.client);
+  // One Tesseract engine for the session — its worker is created lazily on the
+  // first scanned page and reused across files.
+  const ocrEngine = useMemo(() => createTesseractEngine(), []);
   const runIdRef = useRef(0);
   // Incremented when the user goes Home or starts a new Batch so in-flight async
   // work from a cancelled run cannot repopulate batchRef or change the screen.
@@ -92,8 +102,9 @@ export default function App() {
       createDocumentOpener({
         detect: (t) => modelWorker.detector.detect(t, { regex: regexEnabledRef.current }),
         renderPage: renderPageToPng,
+        ocr: { render: renderPageToImageData, engine: ocrEngine },
       }),
-    [modelWorker],
+    [modelWorker, ocrEngine],
   );
 
   // Detect against the opened Document's text, then enter review carrying the
@@ -161,7 +172,14 @@ export default function App() {
     const file = activeFile(batch);
     if (!file) return;
     setScreen({ name: 'analyzing', filename: file.name });
-    const result = await opener.open(file);
+    // Feed per-page OCR progress for scanned PDFs into the analyzing screen so it
+    // shows "Reading scanned pages…" before detection begins — the OCR-branch
+    // affordance, rewired onto main's batch-oriented open flow.
+    const result = await opener.open(file, (p) =>
+      setScreen((s) =>
+        s.name === 'analyzing' ? { ...s, ocr: { processed: p.processed, total: p.total } } : s,
+      ),
+    );
     if (sessionId !== batchSessionRef.current) return;
     if (!result.ok) {
       void processNext(recordFailure(batch, { filename: file.name, reason: result.message }), sessionId);
@@ -410,7 +428,13 @@ export default function App() {
           />
         );
       case 'analyzing':
-        return <Analyzing filename={screen.filename} label="Analyzing…" progress={screen.progress} />;
+        // OCR of a scanned PDF runs before detection; show its per-page progress
+        // with a distinct label until it finishes and detection takes over.
+        return screen.ocr && (screen.ocr.processed < screen.ocr.total || !screen.progress) ? (
+          <Analyzing filename={screen.filename} label="Reading scanned pages…" progress={screen.ocr} />
+        ) : (
+          <Analyzing filename={screen.filename} label="Analyzing…" progress={screen.progress} />
+        );
       case 'redacting':
         return <Analyzing filename={screen.filename} label="Redacting…" />;
       case 'receipt':
