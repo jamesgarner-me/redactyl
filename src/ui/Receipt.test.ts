@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { Receipt } from './Receipt';
+import { isCopyableOutput } from './receiptUtils';
 import type { BatchFailure, BatchOutput } from '../batch/batch';
 
 // No jsdom in this repo, so we render the receipt to static markup (the existing
@@ -9,12 +10,20 @@ import type { BatchFailure, BatchOutput } from '../batch/batch';
 // zip assembly is covered directly in batch/zipBundle.test.ts; here we pin the
 // receipt's structure — succeeded vs failed separation and the bundle actions.
 
-function output(name: string, mapping?: string): BatchOutput {
+function output(name: string, mapping?: string, mime = 'application/octet-stream'): BatchOutput {
   return {
     outputName: name,
-    blob: new Blob([name]),
+    blob: new Blob([name], { type: mime }),
     mapping: mapping ? { name: mapping, blob: new Blob([mapping]) } : undefined,
   };
+}
+
+function textOutput(name: string, mime: 'text/plain' | 'text/csv' = 'text/plain'): BatchOutput {
+  return output(name, undefined, mime);
+}
+
+function pdfOutput(name: string): BatchOutput {
+  return output(name, undefined, 'application/pdf');
 }
 
 function render(outputs: BatchOutput[], failures: BatchFailure[] = []): string {
@@ -75,5 +84,26 @@ describe('Receipt — batch outputs', () => {
     // Nothing to save when no output succeeded.
     expect(allFailed).not.toContain('↓ save');
     expect(allFailed).not.toContain('Save all');
+  });
+});
+
+describe('Receipt — copy redacted text', () => {
+  it('shows Copy redacted text for text/plain and text/csv outputs', () => {
+    const html = render([textOutput('a.redacted.txt'), textOutput('b.redacted.csv', 'text/csv')]);
+    expect(html.match(/Copy redacted text/g)?.length).toBe(2);
+  });
+
+  it('hides Copy redacted text for PDF output', () => {
+    const html = render([pdfOutput('report.redacted.pdf')]);
+    expect(html).not.toContain('Copy redacted text');
+    expect(html).toContain('↓ save');
+  });
+});
+
+describe('isCopyableOutput', () => {
+  it('returns true for text/* blobs and false for PDF', () => {
+    expect(isCopyableOutput(new Blob(['x'], { type: 'text/plain' }))).toBe(true);
+    expect(isCopyableOutput(new Blob(['x'], { type: 'text/csv' }))).toBe(true);
+    expect(isCopyableOutput(new Blob(['x'], { type: 'application/pdf' }))).toBe(false);
   });
 });

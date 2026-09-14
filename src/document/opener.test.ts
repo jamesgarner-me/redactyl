@@ -46,6 +46,41 @@ describe('createDocumentOpener', () => {
     expect(result.document.locate(email!)).toBe('row 2, col 2');
   });
 
+  // Pasted text is opened as pasted-text.txt (ADR 0007) — tabular paste must
+  // sniff to CSV with the synthetic identity preserved on save.
+  it('sniffs tabular pasted text as CSV and saves as pasted-text.redacted.txt', async () => {
+    const result = await opener.open(
+      new File(['name,email\nAlice,jane@x.com'], 'pasted-text.txt', { type: 'text/plain' }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.filename).toBe('pasted-text.txt');
+    const items = await deps.detect(result.document.text);
+    const email = items.find((i) => i.value === 'jane@x.com');
+    expect(email).toBeDefined();
+    expect(result.document.locate(email!)).toBe('row 2, col 2');
+    const outcome = await result.document.redact(email!.spans, { saveMapping: false });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.outputName).toBe('pasted-text.redacted.txt');
+  });
+
+  it('opens prose pasted text as a text Document with line locators', async () => {
+    const result = await opener.open(
+      new File(['Dear Jane,\nYour email is jane@x.com'], 'pasted-text.txt', { type: 'text/plain' }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const items = await deps.detect(result.document.text);
+    const email = items.find((i) => i.value === 'jane@x.com');
+    expect(email).toBeDefined();
+    expect(result.document.locate(email!)).toMatch(/^ln /);
+    const outcome = await result.document.redact(email!.spans, { saveMapping: false });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.outputName).toBe('pasted-text.redacted.txt');
+  });
+
   // Regression guard for GitHub #11 / the e2e contacts-csv-as-txt fixture: a real
   // multi-row export renamed to .txt must open through the CSV adapter (row/col
   // locators), not the line-based text path (ln …).

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { BatchFailure, BatchOutput } from '../batch/batch';
 import { bundleMappingsZip, bundleOutputsZip, hasMappings } from '../batch/zipBundle';
+import { isCopyableOutput } from './receiptUtils';
 
 interface Props {
   // Every succeeded redacted output in the Batch, in completion order.
@@ -41,6 +42,8 @@ export function Receipt({ outputs, failures, onRedactAnother }: Props) {
   // The zip is assembled lazily on click (reading every output's bytes), so the
   // button reflects an in-flight save without blocking the receipt render.
   const [busy, setBusy] = useState<null | 'outputs' | 'mappings'>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
   // The mappings are the reversal keys, so they sit behind a collapsed accordion
   // (rather than next to the redacted-file saves) to keep them from being grabbed
   // by reflex. The user opts in to revealing them.
@@ -63,6 +66,17 @@ export function Receipt({ outputs, failures, onRedactAnother }: Props) {
       if (zip) saveBlob(zip);
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function copyRedactedText(output: BatchOutput, index: number) {
+    setCopyError(null);
+    try {
+      await navigator.clipboard.writeText(await output.blob.text());
+      setCopiedIndex(index);
+      window.setTimeout(() => setCopiedIndex((i) => (i === index ? null : i)), 2000);
+    } catch {
+      setCopyError('Could not copy to clipboard — use ↓ save instead.');
     }
   }
 
@@ -91,15 +105,31 @@ export function Receipt({ outputs, failures, onRedactAnother }: Props) {
               {output.rasterisedPages && output.rasterisedPages.length > 0 && (
                 <RasterNote pages={output.rasterisedPages} />
               )}
-              <button
-                type="button"
-                className="save"
-                onClick={() => saveBlob({ name: output.outputName, blob: output.blob })}
-              >
-                ↓ save
-              </button>
+              <div className="output-actions">
+                {isCopyableOutput(output.blob) && (
+                  <button
+                    type="button"
+                    className="copy"
+                    onClick={() => void copyRedactedText(output, i)}
+                  >
+                    {copiedIndex === i ? 'Copied' : 'Copy redacted text'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="save"
+                  onClick={() => saveBlob({ name: output.outputName, blob: output.blob })}
+                >
+                  ↓ save
+                </button>
+              </div>
             </div>
           ))}
+          {copyError && (
+            <p className="copy-error" role="status">
+              {copyError}
+            </p>
+          )}
         </>
       ) : (
         <p className="empty-caveat">No files could be redacted — see below.</p>
